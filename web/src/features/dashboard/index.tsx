@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
@@ -32,10 +33,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ROLE } from '@/lib/roles'
+import { requireServerSuccess } from '@/lib/server-error-message'
+import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { ModelsChartPreferences } from './components/models/models-chart-preferences'
+import { getDashboardUsageDetails } from './api'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
@@ -44,7 +47,6 @@ import {
   getDefaultDays,
   getSavedChartPreferences,
   getSavedGranularity,
-  saveChartPreferences,
 } from './lib'
 import {
   type DashboardSectionId,
@@ -86,12 +88,6 @@ const LazyLogStatCards = lazy(() =>
 const LazyModelCharts = lazy(() =>
   import('./components/models/model-charts').then((m) => ({
     default: m.ModelCharts,
-  }))
-)
-
-const LazyConsumptionDistributionChart = lazy(() =>
-  import('./components/models/consumption-distribution-chart').then((m) => ({
-    default: m.ConsumptionDistributionChart,
   }))
 )
 
@@ -181,7 +177,7 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
     titleKey: 'Overview',
   },
   models: {
-    titleKey: 'Model Call Analytics',
+    titleKey: 'Dashboard',
   },
   flow: {
     titleKey: 'Flow',
@@ -201,8 +197,9 @@ export function Dashboard() {
 
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
-  const [chartPreferences, setChartPreferences] =
-    useState<DashboardChartPreferences>(() => getSavedChartPreferences())
+  const [chartPreferences] = useState<DashboardChartPreferences>(() =>
+    getSavedChartPreferences()
+  )
   const [modelFilters, setModelFilters] = useState<DashboardFilters>(() =>
     buildDefaultDashboardFilters(getSavedChartPreferences())
   )
@@ -234,17 +231,32 @@ export function Dashboard() {
     []
   )
 
-  const handleChartPreferencesChange = useCallback(
-    (preferences: DashboardChartPreferences) => {
-      setChartPreferences(preferences)
-      setModelFilters(buildDefaultDashboardFilters(preferences))
-      saveChartPreferences(preferences)
-    },
-    []
-  )
-
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const modelDetailsParams = useMemo(() => {
+    const timeGranularity =
+      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+    const timeRange = computeTimeRange(
+      getDefaultDays(timeGranularity),
+      modelFilters.start_timestamp,
+      modelFilters.end_timestamp
+    )
+    return {
+      ...timeRange,
+      time_granularity: timeGranularity,
+      timezone_offset: -new Date().getTimezoneOffset(),
+      ...(modelFilters.username && { username: modelFilters.username }),
+    }
+  }, [modelFilters])
+  const modelDetailsQuery = useQuery({
+    queryKey: ['dashboard', 'usage-details', isAdmin, modelDetailsParams],
+    queryFn: async () =>
+      requireServerSuccess(
+        await getDashboardUsageDetails(modelDetailsParams, isAdmin)
+      ).data,
+    enabled: activeSection === 'models',
+    staleTime: 30 * 1000,
+  })
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
@@ -265,18 +277,12 @@ export function Dashboard() {
     activeSection !== 'overview' && visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
-      <>
-        <ModelsChartPreferences
-          preferences={chartPreferences}
-          onPreferencesChange={handleChartPreferencesChange}
-        />
-        <ModelsFilter
-          preferences={chartPreferences}
-          currentFilters={modelFilters}
-          onFilterChange={handleFilterChange}
-          onReset={handleResetFilters}
-        />
-      </>
+      <ModelsFilter
+        preferences={chartPreferences}
+        currentFilters={modelFilters}
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilters}
+      />
     ) : null
   const flowActions =
     activeSection === 'flow' ? (
@@ -323,11 +329,13 @@ export function Dashboard() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      {activeSection !== 'models' && (
+        <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      )}
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
-            {showSectionTabs ? (
+            {activeSection !== 'models' && showSectionTabs ? (
               <Tabs value={activeSection} onValueChange={handleSectionChange}>
                 <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
@@ -365,24 +373,11 @@ export function Dashboard() {
               )}
               <FadeIn delay={0.1}>
                 <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyConsumptionDistributionChart
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartType={
-                      chartPreferences.consumptionDistributionChart
-                    }
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
-              </FadeIn>
-              <FadeIn delay={0.15}>
-                <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}
+                    details={modelDetailsQuery.data}
                     loading={dataLoading}
-                    defaultChartTab={chartPreferences.modelAnalyticsChart}
+                    detailsLoading={modelDetailsQuery.isLoading}
                     timeGranularity={
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }

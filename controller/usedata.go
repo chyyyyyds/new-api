@@ -129,3 +129,68 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 	})
 	return
 }
+
+func parseDashboardUsageParams(c *gin.Context) (int64, int64, string, int, bool) {
+	startTimestamp, endTimestamp, ok := parseFlowQuotaTimeRange(c)
+	if !ok {
+		return 0, 0, "", 0, false
+	}
+	if endTimestamp-startTimestamp > 2592000 {
+		common.ApiErrorMsg(c, "时间跨度不能超过 1 个月")
+		return 0, 0, "", 0, false
+	}
+
+	granularity := c.DefaultQuery("time_granularity", "day")
+	if granularity != "hour" && granularity != "day" && granularity != "week" {
+		common.ApiErrorMsg(c, "invalid time_granularity")
+		return 0, 0, "", 0, false
+	}
+	timezoneOffset, err := strconv.Atoi(c.DefaultQuery("timezone_offset", "0"))
+	if err != nil || timezoneOffset < -840 || timezoneOffset > 840 {
+		common.ApiErrorMsg(c, "invalid timezone_offset")
+		return 0, 0, "", 0, false
+	}
+	return startTimestamp, endTimestamp, granularity, timezoneOffset, true
+}
+
+// GetAllDashboardUsageDetails 返回管理员可查看的模型与 Token 汇总数据。
+func GetAllDashboardUsageDetails(c *gin.Context) {
+	startTimestamp, endTimestamp, granularity, timezoneOffset, ok := parseDashboardUsageParams(c)
+	if !ok {
+		return
+	}
+	data, err := model.GetDashboardUsageDetails(
+		startTimestamp,
+		endTimestamp,
+		c.Query("username"),
+		0,
+		granularity,
+		timezoneOffset,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": data})
+}
+
+// GetUserDashboardUsageDetails 返回当前用户的模型与 Token 汇总数据。
+func GetUserDashboardUsageDetails(c *gin.Context) {
+	startTimestamp, endTimestamp, granularity, timezoneOffset, ok := parseDashboardUsageParams(c)
+	if !ok {
+		return
+	}
+	data, err := model.GetDashboardUsageDetails(
+		startTimestamp,
+		endTimestamp,
+		"",
+		c.GetInt("id"),
+		granularity,
+		timezoneOffset,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": data})
+}

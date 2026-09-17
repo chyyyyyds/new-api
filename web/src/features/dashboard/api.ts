@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  DashboardUsageDetails,
   FlowQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
@@ -48,6 +49,27 @@ export async function getUserQuotaDates(
     endpoint,
     { params }
   )
+  return res.data
+}
+
+export async function getDashboardUsageDetails(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    time_granularity: string
+    timezone_offset: number
+    username?: string
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin
+    ? '/api/data/usage-details'
+    : '/api/data/usage-details/self'
+  const res = await api.get<{
+    success: boolean
+    data: DashboardUsageDetails
+    message?: string
+  }>(endpoint, { params })
   return res.data
 }
 

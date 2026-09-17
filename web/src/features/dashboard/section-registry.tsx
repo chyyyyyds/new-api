@@ -31,7 +31,7 @@ const DASHBOARD_SECTIONS = [
   },
   {
     id: 'models',
-    titleKey: 'Model Call Analytics',
+    titleKey: 'Dashboard',
     build: () => null,
   },
   {
@@ -57,7 +57,7 @@ const dashboardRegistry = createSectionRegistry<
   []
 >({
   sections: DASHBOARD_SECTIONS,
-  defaultSection: 'overview',
+  defaultSection: 'models',
   basePath: '/dashboard',
   urlStyle: 'path',
 })

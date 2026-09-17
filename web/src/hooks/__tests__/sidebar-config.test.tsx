@@ -120,6 +120,27 @@ describe('security sidebar visibility', () => {
   })
 })
 
+describe('customized root navigation', () => {
+  it('hides chat, playground, overview, and the general and personal labels', () => {
+    const { result } = sidebarFor()
+    const titles = result.current
+      .flatMap((group) => group.items)
+      .map((item) => item.title)
+
+    expect(result.current.some((group) => group.id === 'chat')).toBe(false)
+    expect(result.current.find((group) => group.id === 'general')?.title).toBe(
+      ''
+    )
+    expect(result.current.find((group) => group.id === 'personal')?.title).toBe(
+      ''
+    )
+    expect(titles).not.toContain('Playground')
+    expect(titles).not.toContain('Chat')
+    expect(titles).not.toContain('Overview')
+    expect(titles).toContain('Dashboard')
+  })
+})
+
 describe('audit log sidebar entry', () => {
   it('admin settings default Audit Logs to visible and preserve its independent toggle when saved', () => {
     const config = parseSidebarModulesAdmin(

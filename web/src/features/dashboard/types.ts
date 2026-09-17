@@ -33,6 +33,32 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface DashboardUsageModel {
+  model_name: string
+  requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  total_tokens: number
+  actual_quota: number
+  standard_quota: number
+}
+
+export interface DashboardUsageTimeline {
+  timestamp: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  cache_hit_rate: number
+}
+
+export interface DashboardUsageDetails {
+  models: DashboardUsageModel[]
+  timeline: DashboardUsageTimeline[]
+}
+
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string

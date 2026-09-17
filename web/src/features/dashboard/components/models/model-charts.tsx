@@ -16,154 +16,532 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { VChart } from '@visactor/react-vchart'
-import { PieChart as PieChartIcon } from 'lucide-react'
-import { useEffect, useMemo, useState, useRef } from 'react'
+import {
+  ArrowRight,
+  Coins,
+  FileText,
+  KeyRound,
+  PieChart,
+  Wallet,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { IconBadge } from '@/components/ui/icon-badge'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
 import {
-  DEFAULT_TIME_GRANULARITY,
-  MODEL_ANALYTICS_CHART_OPTIONS,
-} from '@/features/dashboard/constants'
-import { processChartData } from '@/features/dashboard/lib'
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import { IconBadge } from '@/components/ui/icon-badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useTheme } from '@/context/theme-provider'
+import { DEFAULT_TIME_GRANULARITY } from '@/features/dashboard/constants'
 import type {
-  ModelAnalyticsChartTab,
+  DashboardUsageDetails,
   QuotaDataItem,
 } from '@/features/dashboard/types'
-import { useThemeRadiusPx } from '@/lib/theme-radius'
-import type { TimeGranularity } from '@/lib/time'
+import { toIntlLocale } from '@/i18n/languages'
+import {
+  formatCompactNumber,
+  formatNumber,
+  formatQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
+import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
 
-type ChartSpecKey = 'spec_model_line' | 'spec_pie' | 'spec_rank_bar'
-
-const CHART_SPEC_KEYS: Record<ModelAnalyticsChartTab, ChartSpecKey> = {
-  trend: 'spec_model_line',
-  proportion: 'spec_pie',
-  top: 'spec_rank_bar',
-}
+const MODEL_COLORS = [
+  '#3b82f6',
+  '#14b8a6',
+  '#8b5cf6',
+  '#f59e0b',
+  '#ec4899',
+  '#06b6d4',
+]
 
 interface ModelChartsProps {
   data: QuotaDataItem[]
+  details?: DashboardUsageDetails
   loading?: boolean
+  detailsLoading?: boolean
   timeGranularity?: TimeGranularity
-  defaultChartTab?: ModelAnalyticsChartTab
+}
+
+interface QuickActionItem {
+  title: string
+  description: string
+  to: '/keys' | '/usage-logs' | '/wallet'
+  icon: typeof KeyRound
+  tone: 'info' | 'success' | 'warning'
 }
 
 export function ModelCharts(props: ModelChartsProps) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const { customization } = useThemeCustomization()
-  const chartRadius = useThemeRadiusPx(
-    '--radius-md',
-    `${customization.preset}:${customization.radius}`
-  )
-  const [activeTab, setActiveTab] = useState<ModelAnalyticsChartTab>(
-    props.defaultChartTab ?? 'trend'
-  )
   const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
-
-  useEffect(() => {
-    if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
-  }, [props.defaultChartTab])
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const details = props.details ?? { models: [], timeline: [] }
+  const chartLoading = Boolean(props.loading || props.detailsLoading)
 
   useEffect(() => {
     const updateTheme = async () => {
       setThemeReady(false)
-
       if (!themeManagerPromise) {
         themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
+          (module) => module.ThemeManager
         )
       }
-
       const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
       ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
       setThemeReady(true)
     }
-
-    updateTheme()
+    void updateTheme()
   }, [resolvedTheme])
 
-  const chartData = useMemo(
-    () =>
-      processChartData(
-        props.loading ? [] : props.data,
-        timeGranularity,
-        t,
-        chartRadius
-      ),
-    [props.data, props.loading, timeGranularity, t, chartRadius]
+  const totalRequests = useMemo(
+    () => details.models.reduce((total, item) => total + item.requests, 0),
+    [details.models]
+  )
+  const totalTokens = useMemo(
+    () => details.models.reduce((total, item) => total + item.total_tokens, 0),
+    [details.models]
   )
 
-  const spec = chartData[CHART_SPEC_KEYS[activeTab]]
-  const specType = typeof spec?.type === 'string' ? spec.type : activeTab
-  const chartKey = [
-    activeTab,
-    specType,
-    props.loading ? 'loading' : 'ready',
-    props.data.length,
-    resolvedTheme,
-    customization.preset,
-  ].join('-')
+  const modelDistributionSpec = useMemo(
+    () => ({
+      type: 'pie',
+      data: [
+        {
+          id: 'modelDistribution',
+          values: details.models.map((item) => ({
+            Model: item.model_name,
+            Requests: item.requests,
+          })),
+        },
+      ],
+      categoryField: 'Model',
+      valueField: 'Requests',
+      color: MODEL_COLORS,
+      outerRadius: 0.88,
+      innerRadius: 0.62,
+      padAngle: 1.5,
+      label: { visible: false },
+      legends: { visible: false },
+      pie: {
+        style: {
+          cornerRadius: 5,
+          stroke: resolvedTheme === 'dark' ? '#172033' : '#ffffff',
+          lineWidth: 2,
+        },
+      },
+      tooltip: {
+        mark: {
+          content: [
+            { key: (datum: Record<string, unknown>) => String(datum.Model) },
+            {
+              key: t('Requests'),
+              value: (datum: Record<string, unknown>) =>
+                formatNumber(Number(datum.Requests) || 0, locale),
+            },
+          ],
+        },
+      },
+      background: 'transparent',
+      animation: true,
+    }),
+    [details.models, locale, resolvedTheme, t]
+  )
+
+  const tokenTrendSpec = useMemo(() => {
+    const tokenSeries = [
+      { key: 'input_tokens', label: t('Input'), color: '#3b82f6' },
+      { key: 'output_tokens', label: t('Output'), color: '#10b981' },
+      {
+        key: 'cache_creation_tokens',
+        label: t('Cache Creation'),
+        color: '#f59e0b',
+      },
+      { key: 'cache_read_tokens', label: t('Cache Read'), color: '#06b6d4' },
+    ] as const
+    const tokenValues = details.timeline.flatMap((item) => {
+      const time = formatChartTime(item.timestamp, timeGranularity)
+      return tokenSeries.map((series) => ({
+        Time: time,
+        Series: series.label,
+        Tokens: item[series.key],
+      }))
+    })
+    const hitRateLabel = t('Cache Hit Rate')
+    const hitRateValues = details.timeline.map((item) => ({
+      Time: formatChartTime(item.timestamp, timeGranularity),
+      Series: hitRateLabel,
+      Rate: item.cache_hit_rate,
+    }))
+
+    return {
+      type: 'common',
+      data: [
+        { id: 'tokenSeries', values: tokenValues },
+        { id: 'hitRateSeries', values: hitRateValues },
+      ],
+      series: [
+        {
+          id: 'tokens',
+          type: 'line',
+          dataId: 'tokenSeries',
+          xField: 'Time',
+          yField: 'Tokens',
+          seriesField: 'Series',
+          color: {
+            type: 'ordinal',
+            domain: tokenSeries.map((series) => series.label),
+            range: tokenSeries.map((series) => series.color),
+          },
+          line: { style: { lineWidth: 2.5, curveType: 'monotone' } },
+          point: { visible: details.timeline.length < 12 },
+        },
+        {
+          id: 'hit-rate',
+          type: 'line',
+          dataId: 'hitRateSeries',
+          xField: 'Time',
+          yField: 'Rate',
+          seriesField: 'Series',
+          color: '#8b5cf6',
+          line: {
+            style: {
+              lineWidth: 2.5,
+              lineDash: [7, 5],
+              curveType: 'monotone',
+            },
+          },
+          point: { visible: true },
+        },
+      ],
+      axes: [
+        { orient: 'bottom', type: 'band' },
+        {
+          orient: 'left',
+          type: 'linear',
+          seriesId: ['tokens'],
+          label: {
+            formatMethod: (value: number) => formatCompactNumber(value, locale),
+          },
+        },
+        {
+          orient: 'right',
+          type: 'linear',
+          seriesId: ['hit-rate'],
+          min: 0,
+          max: 100,
+          label: { formatMethod: (value: number) => `${value}%` },
+          grid: { visible: false },
+        },
+      ],
+      legends: { visible: true, orient: 'top', position: 'start' },
+      tooltip: {
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => String(datum.Series),
+              value: (datum: Record<string, unknown>) =>
+                datum.Series === hitRateLabel
+                  ? `${Number(datum.Rate || 0).toFixed(1)}%`
+                  : formatNumber(Number(datum.Tokens) || 0, locale),
+            },
+          ],
+        },
+      },
+      background: 'transparent',
+      animation: true,
+    }
+  }, [details.timeline, locale, t, timeGranularity])
+
+  const recentUsage = useMemo(
+    () =>
+      [...props.data]
+        .filter((item) => item.model_name)
+        .sort((left, right) => right.created_at - left.created_at)
+        .slice(0, 5),
+    [props.data]
+  )
+  const quickActions = useMemo<QuickActionItem[]>(
+    () => [
+      {
+        title: t('Create API Key'),
+        description: t('Create a key for your app or service'),
+        to: '/keys',
+        icon: KeyRound,
+        tone: 'success',
+      },
+      {
+        title: t('Usage Logs'),
+        description: t('Inspect requests, errors, and billing details'),
+        to: '/usage-logs',
+        icon: FileText,
+        tone: 'info',
+      },
+      {
+        title: t('Add credits'),
+        description: t('Keep enough balance before production traffic'),
+        to: '/wallet',
+        icon: Wallet,
+        tone: 'warning',
+      },
+    ],
+    [t]
+  )
+
+  const chartTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
+  const hasModelData = !chartLoading && details.models.length > 0
+  const hasTimelineData = !chartLoading && details.timeline.length > 0
+  let modelChart: ReactNode = (
+    <ChartEmptyState title={t('No data available')} icon={PieChart} />
+  )
+  let trendChart: ReactNode = (
+    <ChartEmptyState title={t('No data available')} icon={Coins} />
+  )
+  let recentUsageContent: ReactNode = (
+    <ChartEmptyState title={t('No recent usage')} icon={FileText} />
+  )
+
+  if (chartLoading) {
+    modelChart = <Skeleton className='h-full w-full rounded-lg' />
+    trendChart = <Skeleton className='h-full w-full rounded-lg' />
+  } else if (themeReady) {
+    if (hasModelData) {
+      modelChart = (
+        <VChart
+          key={`model-distribution-${details.models.length}-${chartTheme}`}
+          spec={{ ...modelDistributionSpec, theme: chartTheme }}
+          option={VCHART_OPTION}
+        />
+      )
+    }
+    if (hasTimelineData) {
+      trendChart = (
+        <VChart
+          key={`token-trend-${details.timeline.length}-${chartTheme}`}
+          spec={{ ...tokenTrendSpec, theme: chartTheme }}
+          option={VCHART_OPTION}
+        />
+      )
+    }
+  }
+
+  if (props.loading) {
+    recentUsageContent = (
+      <div className='grid gap-2'>
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={index} className='h-16 w-full rounded-lg' />
+        ))}
+      </div>
+    )
+  } else if (recentUsage.length > 0) {
+    recentUsageContent = (
+      <div className='grid gap-2'>
+        {recentUsage.map((item) => (
+          <div
+            key={`${item.created_at}-${item.model_name}`}
+            className='bg-muted/35 flex min-w-0 items-center gap-3 rounded-lg p-3'
+          >
+            <IconBadge tone='chart-2' size='md'>
+              <Coins />
+            </IconBadge>
+            <div className='min-w-0 flex-1'>
+              <div className='truncate text-sm font-medium'>
+                {item.model_name}
+              </div>
+              <div className='text-muted-foreground truncate text-xs'>
+                {formatTimestampToDate(item.created_at)}
+              </div>
+            </div>
+            <div className='shrink-0 text-right'>
+              <div className='text-success font-mono text-sm font-semibold tabular-nums'>
+                {formatQuota(Number(item.quota) || 0)}
+              </div>
+              <div className='text-muted-foreground text-xs tabular-nums'>
+                {formatNumber(Number(item.token_used) || 0, locale)}{' '}
+                {t('Tokens')}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
-        <div className='flex items-center gap-2'>
-          <IconBadge tone='chart-4' size='sm'>
-            <PieChartIcon />
-          </IconBadge>
-          <div className='text-sm font-semibold'>
-            {t('Model Call Analytics')}
-          </div>
-          <span className='text-muted-foreground text-xs'>
-            {t('Total:')} {chartData.totalCountDisplay}
-          </span>
-        </div>
+    <div className='grid gap-4'>
+      <div className='grid min-w-0 gap-4 xl:grid-cols-2'>
+        <Card className='min-w-0 shadow-xs'>
+          <CardHeader className='border-b'>
+            <CardTitle>{t('Call Count Distribution')}</CardTitle>
+            <CardDescription>
+              {t('Total:')} {formatNumber(totalRequests, locale)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='grid min-h-80 min-w-0 gap-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(22rem,1.35fr)]'>
+            <div className='h-64 min-w-0 self-center lg:h-72'>{modelChart}</div>
+            <div className='min-w-0 self-center overflow-x-auto'>
+              {chartLoading ? (
+                <Skeleton className='h-64 min-w-[34rem] rounded-lg' />
+              ) : (
+                <table className='w-full min-w-[34rem] text-sm'>
+                  <thead>
+                    <tr className='text-muted-foreground border-b text-left text-xs'>
+                      <th className='px-2 py-2 font-medium'>{t('Model')}</th>
+                      <th className='px-2 py-2 text-right font-medium'>
+                        {t('Requests')}
+                      </th>
+                      <th className='px-2 py-2 text-right font-medium'>
+                        Token
+                      </th>
+                      <th className='px-2 py-2 text-right font-medium'>
+                        {t('Actual')}
+                      </th>
+                      <th className='px-2 py-2 text-right font-medium'>
+                        {t('Standard')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {details.models.map((item, index) => (
+                      <tr
+                        key={item.model_name}
+                        className='border-b last:border-0'
+                      >
+                        <td className='max-w-48 px-2 py-2.5'>
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <span
+                              className='size-2.5 shrink-0 rounded-full'
+                              style={{
+                                backgroundColor:
+                                  MODEL_COLORS[index % MODEL_COLORS.length],
+                              }}
+                            />
+                            <span className='truncate font-medium'>
+                              {item.model_name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className='px-2 py-2.5 text-right font-mono tabular-nums'>
+                          {formatNumber(item.requests, locale)}
+                        </td>
+                        <td className='px-2 py-2.5 text-right font-mono tabular-nums'>
+                          {formatCompactNumber(item.total_tokens, locale)}
+                        </td>
+                        <td className='text-success px-2 py-2.5 text-right font-mono font-medium tabular-nums'>
+                          {formatQuota(item.actual_quota)}
+                        </td>
+                        <td className='text-muted-foreground px-2 py-2.5 text-right font-mono tabular-nums'>
+                          {formatQuota(item.standard_quota)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
-          {MODEL_ANALYTICS_CHART_OPTIONS.map((tab) => (
-            <button
-              key={tab.value}
-              type='button'
-              onClick={() => setActiveTab(tab.value)}
-              className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
-                activeTab === tab.value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t(tab.labelKey)}
-            </button>
-          ))}
-        </div>
+        <Card className='min-w-0 shadow-xs'>
+          <CardHeader className='border-b'>
+            <CardTitle>{t('Token Usage Trend')}</CardTitle>
+            <CardDescription>
+              {t('Total Tokens')}: {formatNumber(totalTokens, locale)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='h-80 min-w-0'>{trendChart}</CardContent>
+        </Card>
       </div>
 
-      <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-        {themeReady && spec && (
-          <VChart
-            key={chartKey}
-            spec={{
-              ...spec,
-              theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-              background: 'transparent',
-            }}
-            option={VCHART_OPTION}
-          />
-        )}
+      <div className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
+        <Card className='min-w-0 shadow-xs'>
+          <CardHeader className='border-b'>
+            <CardTitle>{t('Usage Logs')}</CardTitle>
+            <CardAction>
+              <Link
+                to='/usage-logs'
+                className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium transition-colors'
+              >
+                {t('Usage Logs')}
+                <ArrowRight className='size-3.5' aria-hidden='true' />
+              </Link>
+            </CardAction>
+          </CardHeader>
+          <CardContent>{recentUsageContent}</CardContent>
+        </Card>
+
+        <Card className='shadow-xs'>
+          <CardHeader className='border-b'>
+            <CardTitle>{t('Quick actions')}</CardTitle>
+          </CardHeader>
+          <CardContent className='grid gap-2'>
+            {quickActions.map((action) => (
+              <Link
+                key={action.to}
+                to={action.to}
+                className='bg-muted/35 hover:bg-muted/70 focus-visible:ring-ring flex items-center gap-3 rounded-lg p-3 transition-colors outline-none focus-visible:ring-2'
+              >
+                <IconBadge tone={action.tone} size='md'>
+                  <action.icon />
+                </IconBadge>
+                <div className='min-w-0 flex-1'>
+                  <div className='truncate text-sm font-medium'>
+                    {action.title}
+                  </div>
+                  <div className='text-muted-foreground truncate text-xs'>
+                    {action.description}
+                  </div>
+                </div>
+                <ArrowRight
+                  className='text-muted-foreground size-4 shrink-0'
+                  aria-hidden='true'
+                />
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </div>
+  )
+}
+
+function ChartEmptyState({
+  title,
+  icon: Icon,
+}: {
+  title: string
+  icon: typeof PieChart
+}) {
+  return (
+    <Empty className='h-full border-0'>
+      <EmptyHeader>
+        <EmptyMedia variant='icon'>
+          <Icon />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{title}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
