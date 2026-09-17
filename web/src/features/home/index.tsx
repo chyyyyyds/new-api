@@ -121,12 +121,26 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
+    <PublicLayout
+      showMainContainer={false}
+      siteName='chyyds.com'
+      logo={
+        <div className='flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-violet-600 text-sm font-black text-white shadow-sm'>
+          C
+        </div>
+      }
+    >
+      <main className='bg-background relative overflow-hidden'>
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-x-0 top-0 h-[72rem] bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--color-blue-500)_4%,transparent),transparent)]'
+        />
+        <Hero isAuthenticated={isAuthenticated} />
+        <Stats />
+        <Features />
+        <HowItWorks />
+        <CTA isAuthenticated={isAuthenticated} />
+      </main>
       <Footer />
     </PublicLayout>
   )
