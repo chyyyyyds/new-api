@@ -17,41 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Box, KeyRound, Send } from 'lucide-react'
+import { ArrowRight, ChartNoAxesCombined, KeyRound, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
-import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 
-const CURL_EXAMPLE = `curl https://chyyds.com/v1/chat/completions \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "gpt-5.6",
-    "messages": [{"role":"user","content":"Hello chyyds.com"}]
-  }'`
+import { DeveloperTerminal } from '../developer-terminal'
 
 const STEPS = [
   {
-    number: '1',
+    number: '01',
     title: 'Get an API key',
     description:
       'Add your API keys, set up channels and configure access permissions',
     icon: KeyRound,
   },
   {
-    number: '2',
+    number: '02',
     title: 'Connect',
     description:
       'Connect through OpenAI, Claude, Gemini, and other compatible API routes',
-    icon: Box,
+    icon: Route,
   },
   {
-    number: '3',
+    number: '03',
     title: 'Monitor',
     description: 'Track usage, costs and performance with real-time analytics',
-    icon: Send,
+    icon: ChartNoAxesCombined,
   },
 ] as const
 
@@ -59,47 +52,38 @@ export function HowItWorks() {
   const { t } = useTranslation()
 
   return (
-    <section className='border-border/50 relative z-10 border-t px-5 py-20 sm:px-6 md:py-28'>
+    <section className='relative z-10 px-5 py-20 sm:px-6 md:py-28'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-12 md:mb-16'>
-          <h2 className='text-3xl font-bold tracking-tight md:text-5xl'>
+          <span className='home-section-kicker'>{t('Quick start')}</span>
+          <h2 className='home-section-title mt-4'>
             {t('Three steps to get started')}
           </h2>
           <p className='text-muted-foreground mt-4 text-sm leading-7 md:text-base'>
-            {t('One API key connects your everyday AI workflow')}
+            {t('From API key to first response in minutes.')}
           </p>
         </AnimateInView>
 
-        <div className='grid gap-5 lg:grid-cols-[0.85fr_1.45fr]'>
-          <AnimateInView
-            animation='fade-right'
-            className='bg-card/70 border-border/60 rounded-2xl border p-6 shadow-sm md:p-8'
-          >
-            <ol className='relative space-y-8 before:absolute before:top-7 before:bottom-7 before:left-5 before:w-px before:bg-blue-500/25'>
+        <div className='grid items-stretch gap-6 lg:grid-cols-[0.78fr_1.22fr]'>
+          <AnimateInView animation='fade-right' className='home-steps-panel'>
+            <ol className='home-steps-list'>
               {STEPS.map((step) => (
-                <li key={step.number} className='relative flex gap-4'>
-                  <div className='border-primary/25 bg-background text-primary z-10 flex size-10 shrink-0 items-center justify-center rounded-full border text-xs font-semibold'>
-                    {step.number}
-                  </div>
-                  <div className='border-border/50 bg-muted/20 flex min-w-0 flex-1 gap-4 rounded-2xl border p-4'>
-                    <div className='border-primary/15 bg-primary/5 text-primary flex size-11 shrink-0 items-center justify-center rounded-xl border'>
-                      <step.icon className='size-5' aria-hidden='true' />
-                    </div>
-                    <div>
-                      <h3 className='font-semibold'>{t(step.title)}</h3>
-                      <p className='text-muted-foreground mt-1 text-sm leading-6'>
-                        {t(step.description)}
-                      </p>
-                    </div>
+                <li key={step.number}>
+                  <span className='home-step-number'>{step.number}</span>
+                  <span className='home-step-icon'>
+                    <step.icon aria-hidden='true' />
+                  </span>
+                  <div>
+                    <h3>{t(step.title)}</h3>
+                    <p>{t(step.description)}</p>
                   </div>
                 </li>
               ))}
             </ol>
-
             <Button
               variant='outline'
               size='lg'
-              className='mt-8 h-11 gap-2 px-5'
+              className='home-secondary-button mt-8 h-11 gap-2 px-5'
               render={<Link to='/keys' />}
             >
               {t('API Keys')}
@@ -110,47 +94,9 @@ export function HowItWorks() {
           <AnimateInView
             animation='fade-left'
             delay={100}
-            className='bg-card/70 border-border/60 overflow-hidden rounded-2xl border shadow-sm'
+            className='developer-terminal-reveal min-w-0'
           >
-            <div className='border-border/60 flex items-center justify-between border-b px-5 py-4'>
-              <div className='flex items-center gap-3'>
-                <span className='bg-primary/10 text-primary rounded-lg px-3 py-1.5 text-xs font-medium'>
-                  {t('Request')}
-                </span>
-                <span className='text-muted-foreground font-mono text-sm'>
-                  cURL
-                </span>
-              </div>
-              <CopyButton
-                value={CURL_EXAMPLE}
-                className='size-9'
-                tooltip={t('Copy code')}
-                successTooltip={t('Copied!')}
-                aria-label={t('Copy code')}
-              />
-            </div>
-
-            <div className='grid gap-5 p-5 xl:grid-cols-[1fr_14rem]'>
-              <pre className='min-h-80 overflow-x-auto rounded-2xl border border-blue-500/20 bg-slate-950 p-5 font-mono text-xs leading-7 text-slate-200 shadow-inner sm:text-sm'>
-                <code>{CURL_EXAMPLE}</code>
-              </pre>
-
-              <div className='grid content-start gap-4'>
-                <div className='border-border/60 bg-background/60 rounded-2xl border p-5'>
-                  <p className='text-primary text-sm font-semibold'>
-                    {t('Compatible with OpenAI')}
-                  </p>
-                  <code className='bg-muted/50 text-primary mt-4 block overflow-x-auto rounded-lg px-3 py-2 text-xs'>
-                    https://chyyds.com/v1
-                  </code>
-                </div>
-                <div className='border-border/60 bg-background/60 text-muted-foreground grid gap-3 rounded-2xl border p-5 text-sm'>
-                  <p>{t('One integration, multiple model families')}</p>
-                  <p>{t('Streaming responses')}</p>
-                  <p>{t('Multi-protocol support')}</p>
-                </div>
-              </div>
-            </div>
+            <DeveloperTerminal />
           </AnimateInView>
         </div>
       </div>

@@ -20,8 +20,10 @@ import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { Features } from '../features'
 import { Hero } from '../hero'
 import { HowItWorks } from '../how-it-works'
+import { Stats } from '../stats'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children?: ReactNode; to?: string }) => (
@@ -42,9 +44,13 @@ vi.mock('@/lib/lobe-icon', () => ({
 }))
 
 vi.mock('@/components/animate-in-view', () => ({
-  AnimateInView: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  AnimateInView: ({
+    children,
+    className,
+  }: {
+    children: ReactNode
+    className?: string
+  }) => <div className={className}>{children}</div>,
 }))
 
 vi.mock('@/components/copy-button', () => ({
@@ -60,14 +66,16 @@ afterEach(() => {
 })
 
 describe('landing page sections', () => {
-  test('shows only the four requested providers around chyyds.com', () => {
+  test('shows the six primary providers around chyyds.com', () => {
     render(<Hero isAuthenticated={false} />)
 
     expect(screen.getByText('chyyds.com')).toBeInTheDocument()
     expect(screen.getByText('GPT')).toBeInTheDocument()
-    expect(screen.getByText('Claude')).toBeInTheDocument()
-    expect(screen.getByText('Gemini')).toBeInTheDocument()
-    expect(screen.getByText('GLM')).toBeInTheDocument()
+    expect(screen.getAllByText('Claude').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Gemini').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('DeepSeek').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('GLM').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Qwen').length).toBeGreaterThan(0)
     expect(screen.queryByText(/Kimi/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Embeddings/i)).not.toBeInTheDocument()
   })
@@ -76,6 +84,26 @@ describe('landing page sections', () => {
     const { container } = render(<HowItWorks />)
 
     expect(container.textContent).toContain('https://chyyds.com/v1')
+    expect(container.textContent).toContain('/v1/chat/completions')
+    expect(container.textContent).toContain('Responses API')
+    expect(container.textContent).toContain('Streaming')
     expect(container.textContent).not.toContain('cun.ai')
+  })
+
+  test('presents metrics in one infrastructure status panel', () => {
+    const { container } = render(<Stats />)
+
+    expect(container.querySelectorAll('.home-status-panel')).toHaveLength(1)
+    expect(container.querySelectorAll('.home-status-metric')).toHaveLength(4)
+    expect(screen.getByText('99.9%')).toBeInTheDocument()
+  })
+
+  test('uses a varied bento layout for the core capabilities', () => {
+    const { container } = render(<Features />)
+
+    expect(container.querySelectorAll('.home-bento-card')).toHaveLength(5)
+    expect(screen.getByText('Global AI Network')).toBeInTheDocument()
+    expect(screen.getByText('Transparent Billing')).toBeInTheDocument()
+    expect(screen.getByText('Secure by Design')).toBeInTheDocument()
   })
 })
