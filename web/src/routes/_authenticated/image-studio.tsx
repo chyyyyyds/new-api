@@ -68,6 +68,13 @@ function ImageStudioRoute() {
   const selectedKey = enabledKeys.find(
     (item) => String(item.id) === selectedKeyId
   )
+  const firstEnabledKeyId = enabledKeys[0]?.id
+
+  useEffect(() => {
+    if (!selectedKeyId && firstEnabledKeyId !== undefined) {
+      setSelectedKeyId(String(firstEnabledKeyId))
+    }
+  }, [firstEnabledKeyId, selectedKeyId])
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -102,7 +109,11 @@ function ImageStudioRoute() {
         : `sk-${result.data.key}`
       // API Key 只通过同源窗口消息传递，不进入 URL、历史记录或 Referer。
       iframeRef.current.contentWindow.postMessage(
-        createCanvasConfigMessage(window.location.origin, apiKey),
+        createCanvasConfigMessage(
+          window.location.origin,
+          apiKey,
+          selectedKey.name
+        ),
         window.location.origin
       )
       setConnectedKeyId(String(selectedKey.id))

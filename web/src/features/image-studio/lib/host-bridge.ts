@@ -25,12 +25,17 @@ type CanvasLifecycleMessage = {
   version: 1
 }
 
-export function createCanvasConfigMessage(baseUrl: string, apiKey: string) {
+export function createCanvasConfigMessage(
+  baseUrl: string,
+  apiKey: string,
+  channelName: string
+) {
   return {
     type: NEW_API_CANVAS_CONFIG,
     version: 1,
     baseUrl,
     apiKey,
+    channelName,
   } as const
 }
 

@@ -28,12 +28,17 @@ import {
 describe('image studio host bridge', () => {
   it('creates a versioned Canvas configuration message', () => {
     expect(
-      createCanvasConfigMessage('https://api.example.com', 'sk-image-key')
+      createCanvasConfigMessage(
+        'https://api.example.com',
+        'sk-image-key',
+        '图图'
+      )
     ).toEqual({
       type: NEW_API_CANVAS_CONFIG,
       version: 1,
       baseUrl: 'https://api.example.com',
       apiKey: 'sk-image-key',
+      channelName: '图图',
     })
   })
 
