@@ -28,7 +28,8 @@ type CanvasLifecycleMessage = {
 export function createCanvasConfigMessage(
   baseUrl: string,
   apiKey: string,
-  channelName: string
+  channelName: string,
+  historyScope: string
 ) {
   return {
     type: NEW_API_CANVAS_CONFIG,
@@ -36,6 +37,7 @@ export function createCanvasConfigMessage(
     baseUrl,
     apiKey,
     channelName,
+    historyScope,
   } as const
 }
 

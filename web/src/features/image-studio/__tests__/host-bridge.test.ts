@@ -31,7 +31,8 @@ describe('image studio host bridge', () => {
       createCanvasConfigMessage(
         'https://api.example.com',
         'sk-image-key',
-        '图图'
+        '图图',
+        'user-42'
       )
     ).toEqual({
       type: NEW_API_CANVAS_CONFIG,
@@ -39,6 +40,7 @@ describe('image studio host bridge', () => {
       baseUrl: 'https://api.example.com',
       apiKey: 'sk-image-key',
       channelName: '图图',
+      historyScope: 'user-42',
     })
   })
 

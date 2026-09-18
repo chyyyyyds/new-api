@@ -97,7 +97,7 @@ function ImageStudioRoute() {
   }, [])
 
   const connectCanvas = async () => {
-    if (!selectedKey || !iframeRef.current?.contentWindow) return
+    if (!userId || !selectedKey || !iframeRef.current?.contentWindow) return
     setConnecting(true)
     try {
       const result = await fetchTokenKey(selectedKey.id)
@@ -112,7 +112,8 @@ function ImageStudioRoute() {
         createCanvasConfigMessage(
           window.location.origin,
           apiKey,
-          selectedKey.name
+          selectedKey.name,
+          `user-${userId}`
         ),
         window.location.origin
       )
