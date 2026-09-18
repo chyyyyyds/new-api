@@ -15,8 +15,9 @@ import (
 
 // WebAssets holds the embedded dashboard frontend assets.
 type WebAssets struct {
-	BuildFS   embed.FS
-	IndexPage []byte
+	BuildFS         embed.FS
+	IndexPage       []byte
+	CanvasIndexPage []byte
 }
 
 func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
@@ -31,8 +32,14 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 		middleware.Cache(),
 		static.Serve("/", frontendFS),
 		func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+			path := c.Request.URL.Path
+			if strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/assets") || strings.HasPrefix(path, "/canvas/assets") {
 				controller.RelayNotFound(c)
+				return
+			}
+			if path == "/canvas" || strings.HasPrefix(path, "/canvas/") {
+				c.Header("Cache-Control", "no-cache")
+				c.Data(http.StatusOK, "text/html; charset=utf-8", assets.CanvasIndexPage)
 				return
 			}
 			c.Header("Cache-Control", "no-cache")

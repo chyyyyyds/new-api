@@ -888,8 +888,8 @@ func performPluginRequest(handler http.Handler, method, path string) *httptest.R
 
 func TestWebFallbackDoesNotCacheMissingAPIOrAssets(t *testing.T) {
 	outer := gin.New()
-	SetWebRouter(outer, WebAssets{IndexPage: []byte("dashboard")}, func(c *gin.Context) { c.Next() })
-	for _, path := range []string{"/api/user/token/status", "/api/audit/self?p=1", "/v1/missing", "/assets/missing.js"} {
+	SetWebRouter(outer, WebAssets{IndexPage: []byte("dashboard"), CanvasIndexPage: []byte("canvas")}, func(c *gin.Context) { c.Next() })
+	for _, path := range []string{"/api/user/token/status", "/api/audit/self?p=1", "/v1/missing", "/assets/missing.js", "/canvas/assets/missing.js"} {
 		t.Run(path, func(t *testing.T) {
 			response := performPluginRequest(outer, http.MethodGet, path)
 			assert.Equal(t, http.StatusNotFound, response.Code)
@@ -902,6 +902,10 @@ func TestWebFallbackDoesNotCacheMissingAPIOrAssets(t *testing.T) {
 	assert.Equal(t, http.StatusOK, page.Code)
 	assert.Equal(t, "dashboard", page.Body.String())
 	assert.Equal(t, "no-cache", page.Header().Get("Cache-Control"))
+	canvasPage := performPluginRequest(outer, http.MethodGet, "/canvas/image")
+	assert.Equal(t, http.StatusOK, canvasPage.Code)
+	assert.Equal(t, "canvas", canvasPage.Body.String())
+	assert.Equal(t, "no-cache", canvasPage.Header().Get("Cache-Control"))
 }
 
 func TestSecurityRoutesDisableCachingBeforeAuthentication(t *testing.T) {

@@ -21,6 +21,7 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  Images,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -63,6 +64,11 @@ export function useSidebarData(): SidebarData {
             title: t('API Keys'),
             url: '/keys',
             icon: Key,
+          },
+          {
+            title: t('Image Studio'),
+            url: '/image-studio',
+            icon: Images,
           },
           {
             title: t('Usage Logs'),

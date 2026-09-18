@@ -1,4 +1,5 @@
 WEB_DIR = ./web
+CANVAS_WEB_DIR = ./canvas/web
 API_DIR = .
 DEV_WEB_PORT ?= 5173
 DEV_COMPOSE_FILE = docker-compose.dev.yml
@@ -8,7 +9,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-canvas build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-canvas reset-setup test
 
 all: build-all-web start-api
 
@@ -17,7 +18,15 @@ build-web:
 	@cd $(WEB_DIR) && bun install --frozen-lockfile
 	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
 
-build-all-web: build-web
+build-canvas:
+	@echo "Building Infinite Canvas frontend..."
+	@cd $(CANVAS_WEB_DIR) && bun install --frozen-lockfile
+	@cd $(CANVAS_WEB_DIR) && VITE_BASE='/canvas/' bun run build
+	@rm -rf $(WEB_DIR)/dist/canvas
+	@mkdir -p $(WEB_DIR)/dist/canvas
+	@cp -R $(CANVAS_WEB_DIR)/dist/. $(WEB_DIR)/dist/canvas/
+
+build-all-web: build-web build-canvas
 
 start-api:
 	@echo "Starting api dev server..."
@@ -36,6 +45,11 @@ dev-web:
 	@echo "Web frontend: http://localhost:$(DEV_WEB_PORT)"
 	@cd $(WEB_DIR) && bun install
 	@cd $(WEB_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_PORT)
+
+dev-canvas:
+	@echo "Infinite Canvas: http://localhost:3001/canvas/"
+	@cd $(CANVAS_WEB_DIR) && bun install
+	@cd $(CANVAS_WEB_DIR) && VITE_BASE='/canvas/' bun run dev -- --host 0.0.0.0 --port 3001
 
 dev: dev-api dev-web
 
