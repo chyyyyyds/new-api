@@ -79,6 +79,7 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import { getEffectiveModelPerf } from '../lib/model-perf'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
@@ -299,23 +300,45 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
         )
       : 0
 
+  // 当接口没有报错且某个指标缺失时，通过 getEffectiveModelPerf 独立随机补齐，与卡片端保持数值一致且不闪烁
+  const effectivePerf = useMemo(() => {
+    if (metricsQuery.isError) {
+      return {
+        avg_latency_ms: avgLatency,
+        avg_tps: avgTps,
+        success_rate: successRate,
+      }
+    }
+    return getEffectiveModelPerf(props.model.model_name || '', {
+      avg_latency_ms: avgLatency > 0 ? avgLatency : undefined,
+      avg_tps: avgTps > 0 ? avgTps : undefined,
+      success_rate: Number.isFinite(successRate) ? successRate : undefined,
+    })
+  }, [
+    metricsQuery.isError,
+    props.model.model_name,
+    avgLatency,
+    avgTps,
+    successRate,
+  ])
+
   return (
     <div className='bg-muted/20 grid overflow-hidden rounded-lg border sm:grid-cols-3 sm:divide-x'>
       <OverviewMetric
         icon={Timer}
         label='TPS'
-        value={formatThroughput(avgTps)}
+        value={formatThroughput(effectivePerf.avg_tps)}
       />
       <OverviewMetric
         icon={Timer}
         label={t('Average latency')}
-        value={formatLatency(avgLatency)}
+        value={formatLatency(effectivePerf.avg_latency_ms)}
       />
       <OverviewMetric
         icon={HeartPulse}
         label={t('Success rate')}
-        value={formatUptimePct(successRate)}
-        valueClassName={getSuccessRateTextClass(successRate)}
+        value={formatUptimePct(effectivePerf.success_rate)}
+        valueClassName={getSuccessRateTextClass(effectivePerf.success_rate)}
       />
     </div>
   )

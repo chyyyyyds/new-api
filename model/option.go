@@ -679,3 +679,29 @@ func handleConfigUpdate(key, value string) bool {
 
 	return true // 已处理
 }
+
+// OptionKeyChannelStatusPublicDimensions 渠道状态公开展示维度配置键
+const OptionKeyChannelStatusPublicDimensions = "channel_status.public_dimensions"
+
+// GetChannelStatusPublicDimensions 获取允许公开展示的渠道维度列表
+func GetChannelStatusPublicDimensions() ([]string, error) {
+	var option Option
+	err := DB.Where(commonKeyCol+" = ?", OptionKeyChannelStatusPublicDimensions).First(&option).Error
+	if err != nil {
+		return nil, err
+	}
+	var dims []string
+	if err := common.UnmarshalJsonStr(option.Value, &dims); err != nil {
+		return nil, err
+	}
+	return dims, nil
+}
+
+// SaveChannelStatusPublicDimensions 保存允许公开展示的渠道维度列表
+func SaveChannelStatusPublicDimensions(dims []string) error {
+	data, err := common.Marshal(dims)
+	if err != nil {
+		return err
+	}
+	return UpdateOption(OptionKeyChannelStatusPublicDimensions, string(data))
+}

@@ -609,6 +609,54 @@ func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
 	}
 }
 
+func TestSoraAdaptorDoesNotMultiplySeedancePerTaskPricesByDuration(t *testing.T) {
+	source, err := plugins.Source("sora")
+	require.NoError(t, err)
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	context.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "test", Duration: 15})
+
+	perTaskModels := []string{
+		"seedance-2.0-480p-c1",
+		"seedance-2.0-720p-c2",
+		"seedance-2.0-fast-720p-c3",
+		"seedance-2.5-720p-c4",
+		"seedance-2.0-fast-720p-c5",
+		"seedance-2.0-fast-720p-c6",
+		"seedance-2.0-fast-720p-c7",
+		"seedance-2.0-fast-720p-c8",
+		"seedance-2.0-fast-720p-c9",
+		"seedance-2.0-720p-c10",
+		"seedance-2.0-720p-c11",
+		"seedance-2.5-720p-c12",
+	}
+	for _, modelName := range perTaskModels {
+			t.Run(modelName, func(t *testing.T) {
+				info := &relaycommon.RelayInfo{
+					OriginModelName: modelName,
+					ChannelMeta:     &relaycommon.ChannelMeta{},
+					TaskRelayInfo:  &relaycommon.TaskRelayInfo{},
+				}
+			assert.Empty(t, adaptor.EstimateBilling(context, info))
+		})
+	}
+
+	for _, modelName := range []string{"sora-2", "seedance-2.0-fast-720p-c5-custom"} {
+			t.Run(modelName, func(t *testing.T) {
+				info := &relaycommon.RelayInfo{
+					OriginModelName: modelName,
+					ChannelMeta:     &relaycommon.ChannelMeta{},
+					TaskRelayInfo:  &relaycommon.TaskRelayInfo{},
+				}
+			assert.Equal(t, map[string]float64{"seconds": 15}, adaptor.EstimateBilling(context, info))
+		})
+	}
+}
+
 func TestTaskAdaptorRejectsNonObjectOpenAIVideoRendererOutput(t *testing.T) {
 	for _, value := range []string{"null", "[]", `"video"`, "42", "false"} {
 		t.Run(value, func(t *testing.T) {

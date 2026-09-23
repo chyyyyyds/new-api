@@ -139,8 +139,9 @@ export function ModelCharts(props: ModelChartsProps) {
       categoryField: 'Model',
       valueField: 'Requests',
       color: MODEL_COLORS,
-      outerRadius: 0.88,
-      innerRadius: 0.62,
+      padding: 0,
+      outerRadius: 0.95,
+      innerRadius: 0.6,
       padAngle: 1.5,
       label: { visible: false },
       legends: { visible: false },
@@ -398,26 +399,28 @@ export function ModelCharts(props: ModelChartsProps) {
               {t('Total:')} {formatNumber(totalRequests, locale)}
             </CardDescription>
           </CardHeader>
-          <CardContent className='grid min-h-80 min-w-0 gap-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(22rem,1.35fr)]'>
-            <div className='h-64 min-w-0 self-center lg:h-72'>{modelChart}</div>
-            <div className='min-w-0 self-center overflow-x-auto'>
+          <CardContent className='flex min-h-72 min-w-0 flex-col items-center justify-start gap-4 p-4 sm:flex-row sm:gap-6 sm:p-5'>
+            <div className='size-36 shrink-0 sm:size-40'>{modelChart}</div>
+            <div className='min-w-0 flex-1 overflow-x-auto'>
               {chartLoading ? (
-                <Skeleton className='h-64 min-w-[34rem] rounded-lg' />
+                <Skeleton className='h-40 w-72 rounded-lg' />
               ) : (
-                <table className='w-full min-w-[34rem] text-sm'>
+                <table className='w-full max-w-lg text-xs sm:text-sm'>
                   <thead>
-                    <tr className='text-muted-foreground border-b text-left text-xs'>
-                      <th className='px-2 py-2 font-medium'>{t('Model')}</th>
-                      <th className='px-2 py-2 text-right font-medium'>
+                    <tr className='text-muted-foreground border-border/40 border-b text-left text-xs'>
+                      <th className='pr-2 pb-2 pl-0 font-medium whitespace-nowrap'>
+                        {t('Model')}
+                      </th>
+                      <th className='px-2 pb-2 text-right font-medium whitespace-nowrap'>
                         {t('Requests')}
                       </th>
-                      <th className='px-2 py-2 text-right font-medium'>
+                      <th className='px-2 pb-2 text-right font-medium whitespace-nowrap'>
                         Token
                       </th>
-                      <th className='px-2 py-2 text-right font-medium'>
+                      <th className='px-2 pb-2 text-right font-medium whitespace-nowrap'>
                         {t('Actual')}
                       </th>
-                      <th className='px-2 py-2 text-right font-medium'>
+                      <th className='pr-0 pb-2 pl-2 text-right font-medium whitespace-nowrap'>
                         {t('Standard')}
                       </th>
                     </tr>
@@ -426,32 +429,32 @@ export function ModelCharts(props: ModelChartsProps) {
                     {details.models.map((item, index) => (
                       <tr
                         key={item.model_name}
-                        className='border-b last:border-0'
+                        className='border-border/30 border-b last:border-0'
                       >
-                        <td className='max-w-48 px-2 py-2.5'>
-                          <div className='flex min-w-0 items-center gap-2'>
+                        <td className='py-2 pr-2 pl-0'>
+                          <div className='flex min-w-0 items-center gap-1.5'>
                             <span
-                              className='size-2.5 shrink-0 rounded-full'
+                              className='size-2 shrink-0 rounded-full'
                               style={{
                                 backgroundColor:
                                   MODEL_COLORS[index % MODEL_COLORS.length],
                               }}
                             />
-                            <span className='truncate font-medium'>
+                            <span className='max-w-[100px] truncate font-medium sm:max-w-[130px] lg:max-w-[160px]'>
                               {item.model_name}
                             </span>
                           </div>
                         </td>
-                        <td className='px-2 py-2.5 text-right font-mono tabular-nums'>
+                        <td className='px-2 py-2 text-right font-mono whitespace-nowrap tabular-nums'>
                           {formatNumber(item.requests, locale)}
                         </td>
-                        <td className='px-2 py-2.5 text-right font-mono tabular-nums'>
+                        <td className='text-foreground px-2 py-2 text-right font-mono whitespace-nowrap tabular-nums'>
                           {formatCompactNumber(item.total_tokens, locale)}
                         </td>
-                        <td className='text-success px-2 py-2.5 text-right font-mono font-medium tabular-nums'>
+                        <td className='px-2 py-2 text-right font-mono font-medium whitespace-nowrap text-emerald-600 tabular-nums dark:text-emerald-400'>
                           {formatQuota(item.actual_quota)}
                         </td>
-                        <td className='text-muted-foreground px-2 py-2.5 text-right font-mono tabular-nums'>
+                        <td className='text-muted-foreground py-2 pr-0 pl-2 text-right font-mono whitespace-nowrap tabular-nums'>
                           {formatQuota(item.standard_quota)}
                         </td>
                       </tr>

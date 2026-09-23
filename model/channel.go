@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 
@@ -381,6 +382,17 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 	}
 	return channels, err
 }
+
+// GetEnabledChannelsForOverview 获取所有已启用的渠道（供公开概览使用，排除 key 等敏感信息）
+func GetEnabledChannelsForOverview() ([]*Channel, error) {
+	var channels []*Channel
+	err := DB.Where("status = ?", common.ChannelStatusEnabled).
+		Select("id", "name", "type", commonGroupCol, "models").
+		Order("id asc").
+		Find(&channels).Error
+	return channels, err
+}
+
 
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
@@ -1193,4 +1205,55 @@ func CountChannelsGroupByType() (map[int64]int64, error) {
 		counts[r.Type] = r.Count
 	}
 	return counts, nil
+}
+
+// ChannelStatusLogRecord 日志聚合项
+type ChannelStatusLogRecord struct {
+	CreatedAt    int64  `gorm:"column:created_at"`
+	Type         int    `gorm:"column:type"`
+	ChannelId    int    `gorm:"column:channel_id"`
+	Group        string `gorm:"column:group"`
+	ModelName    string `gorm:"column:model_name"`
+	UseTime      int    `gorm:"column:use_time"`
+	PromptTokens int    `gorm:"column:prompt_tokens"`
+	Other        string `gorm:"column:other"`
+}
+
+// GetChannelStatusLogStats 查询指定时间段内的消费与错误日志记录，供渠道监控动态统计
+func GetChannelStatusLogStats(startTime, endTime int64) ([]ChannelStatusLogRecord, error) {
+	if LOG_DB == nil {
+		return nil, nil
+	}
+	var records []ChannelStatusLogRecord
+	// 优先按最新记录降序取样，防止大时间跨度下近期的失败或波动日志被截断
+	err := LOG_DB.Table("logs").
+		Select("created_at, type, channel_id, " + commonGroupCol + ", model_name, use_time, prompt_tokens, other").
+		Where("created_at >= ? AND created_at <= ? AND type IN (?, ?)", startTime, endTime, LogTypeConsume, LogTypeError).
+		Order("created_at DESC").
+		Limit(20000).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	// 翻转为时间升序排列，便于后续时间桶顺序累计
+	slices.Reverse(records)
+	return records, nil
+}
+
+// GetRecentConsumeLogs 查询最近历史日志（用于在当前窗口流量不足时回填真实基准指标）
+func GetRecentConsumeLogs(limit int) ([]ChannelStatusLogRecord, error) {
+	if LOG_DB == nil {
+		return nil, nil
+	}
+	var records []ChannelStatusLogRecord
+	err := LOG_DB.Table("logs").
+		Select("created_at, type, channel_id, " + commonGroupCol + ", model_name, use_time, prompt_tokens, other").
+		Where("type IN (?, ?)", LogTypeConsume, LogTypeError).
+		Order("id DESC").
+		Limit(limit).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	return records, nil
 }

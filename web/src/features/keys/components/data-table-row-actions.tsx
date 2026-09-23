@@ -22,37 +22,16 @@ import {
   Edit,
   Power,
   PowerOff,
-  ExternalLink,
-  ArrowRightLeft,
-  Copy,
-  Link,
+  ArrowUpToLine,
   Loader2,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuShortcut,
-} from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
-import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
-import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
-import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { handleServerError } from '@/lib/handle-server-error'
+import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -72,6 +51,87 @@ function getServerAddress(): string {
   return window.location.origin
 }
 
+function buildQuickCCSwitchURL(
+  apiKey: string,
+  keyName?: string,
+  modelLimits?: string
+): string {
+  const serverAddress = getServerAddress()
+  const systemName =
+    useSystemConfigStore.getState().config.systemName ||
+    (function () {
+      try {
+        const raw = localStorage.getItem('status')
+        if (raw) {
+          const s = JSON.parse(raw)
+          if (s.system_name) return s.system_name as string
+        }
+      } catch {
+        /* empty */
+      }
+      return keyName || 'FluxAI'
+    })()
+
+  // 判断应用类型与默认模型
+  let app = 'codex'
+  let defaultModel = 'gpt-5.5'
+  const lowerLimits = (modelLimits || '').toLowerCase()
+  const lowerName = (keyName || '').toLowerCase()
+
+  if (
+    lowerLimits.includes('claude') ||
+    lowerName.includes('claude') ||
+    lowerName.includes('anthropic')
+  ) {
+    app = 'claude'
+    defaultModel = 'claude-3-7-sonnet-20250219'
+  } else if (modelLimits) {
+    const firstModel = modelLimits.split(',')[0]?.trim()
+    if (firstModel) defaultModel = firstModel
+  }
+
+  const script = `({
+  request: {
+    url: "{{baseUrl}}/v1/usage",
+    method: "GET",
+    headers: { "Authorization": "Bearer {{apiKey}}" }
+  },
+  extractor: function(response) {
+    if (typeof response === "string") { response = JSON.parse(response); }
+    return {
+      isValid: true,
+      remaining: response.remaining ?? response.balance ?? 0,
+      used: response.used ?? 0,
+      total: response.total ?? 0,
+      unit: response.unit || "USD"
+    };
+  }
+})`
+
+  const usageScriptBase64 =
+    typeof window !== 'undefined' && typeof window.btoa === 'function'
+      ? window.btoa(unescape(encodeURIComponent(script)))
+      : ''
+
+  const endpoint = app === 'codex' ? `${serverAddress}/v1` : serverAddress
+
+  const params = new URLSearchParams()
+  params.set('resource', 'provider')
+  params.set('app', app)
+  params.set('name', systemName)
+  params.set('endpoint', endpoint)
+  params.set('apiKey', apiKey.startsWith('sk-') ? apiKey : `sk-${apiKey}`)
+  params.set('homepage', serverAddress)
+  params.set('model', defaultModel)
+  params.set('enabled', 'true')
+  params.set('usageEnabled', 'true')
+  if (usageScriptBase64) {
+    params.set('usageScript', usageScriptBase64)
+  }
+
+  return `ccswitch://v1/import?${params.toString()}`
+}
+
 type DataTableRowActionsProps<TData> = {
   row: Row<TData>
 }
@@ -85,58 +145,44 @@ export function DataTableRowActions<TData>({
     setOpen,
     setCurrentRow,
     triggerRefresh,
-    setResolvedKey,
     resolveRealKey,
     loadingKeys,
   } = useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
-  const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const isRealKeyLoading = Boolean(loadingKeys[apiKey.id])
 
-  const hasChatPresets = chatPresets.length > 0
   const toggleLabel = isEnabled ? t('Disable') : t('Enable')
 
-  const handleOpenChatPreset = useCallback(
-    async (preset: ChatPreset) => {
+  const handleImportToCCS = async () => {
+    setIsImporting(true)
+    try {
       const realKey = await resolveRealKey(apiKey.id)
-      if (!realKey) return
-
-      if (preset.type === 'fluent') {
-        const success = sendToFluent(realKey, serverAddress)
-        if (success) {
-          toast.success(t('Sent the API key to FluentRead.'))
-        } else {
-          toast.info(
-            t(
-              'FluentRead extension not detected. Please ensure it is installed and active.'
-            )
-          )
-        }
+      if (!realKey) {
+        toast.error(t('Failed to resolve API key'))
         return
       }
+      const url = buildQuickCCSwitchURL(
+        realKey,
+        apiKey.name,
+        apiKey.model_limits ?? undefined
+      )
 
-      const resolvedUrl = resolveChatUrl({
-        template: preset.url,
-        apiKey: realKey,
-        serverAddress,
-      })
+      const a = document.createElement('a')
+      a.href = url
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
 
-      if (!resolvedUrl) {
-        toast.error(t('Invalid chat link. Please contact your administrator.'))
-        return
-      }
-
-      if (typeof window === 'undefined') return
-
-      try {
-        window.open(resolvedUrl, '_blank', 'noopener')
-      } catch {
-        window.location.href = resolvedUrl
-      }
-    },
-    [resolveRealKey, apiKey.id, serverAddress, t]
-  )
+      toast.success(t('Opening CC Switch...'))
+    } catch {
+      toast.error(t('Failed to open CC Switch'))
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   const handleToggleStatus = async (
     event?: React.MouseEvent<HTMLButtonElement>
@@ -165,142 +211,85 @@ export function DataTableRowActions<TData>({
     }
   }
 
-  let statusIcon = <Power className='size-4' />
+  let statusIcon = <Power className='size-3.5' />
   if (isTogglingStatus) {
-    statusIcon = <Loader2 className='size-4 animate-spin' />
+    statusIcon = <Loader2 className='size-3.5 animate-spin' />
   } else if (isEnabled) {
-    statusIcon = <PowerOff className='size-4' />
+    statusIcon = <PowerOff className='size-3.5' />
   }
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-              aria-label={toggleLabel}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-              }
-            />
-          }
-        >
-          {statusIcon}
-        </TooltipTrigger>
-        <TooltipContent>{toggleLabel}</TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={() => {
-                setCurrentRow(apiKey)
-                setOpen('update')
-              }}
-              aria-label={t('Edit')}
-            />
-          }
-        >
-          <Edit />
-        </TooltipTrigger>
-        <TooltipContent>{t('Edit')}</TooltipContent>
-      </Tooltip>
-
-      <DataTableRowActionMenu
-        ariaLabel={t('Open menu')}
-        contentClassName='w-[200px]'
-        modal={false}
+    <div className='-ml-1 flex items-center gap-1.5 py-0.5'>
+      {/* 1. 导入到 CCS */}
+      <button
+        type='button'
+        onClick={() => void handleImportToCCS()}
+        disabled={isImporting || isRealKeyLoading}
+        className='group text-muted-foreground hover:text-primary hover:bg-muted/60 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1 transition-colors disabled:opacity-50'
+        title={t('Import to CCS')}
       >
-        <DropdownMenuItem
-          disabled={isRealKeyLoading}
-          onClick={async () => {
-            const realKey = await resolveRealKey(apiKey.id)
-            if (!realKey) return
-            const ok = await copyToClipboard(realKey)
-            if (ok) toast.success(t('Copied'))
-          }}
-        >
-          {t('Copy Key')}
-          <DropdownMenuShortcut>
-            <Copy size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={isRealKeyLoading}
-          onClick={async () => {
-            const realKey = await resolveRealKey(apiKey.id)
-            if (!realKey) return
-            const connStr = encodeChannelConnectionInfo(
-              realKey,
-              getServerAddress()
-            )
-            const ok = await copyToClipboard(connStr)
-            if (ok) toast.success(t('Copied'))
-          }}
-        >
-          {t('Copy Connection Info')}
-          <DropdownMenuShortcut>
-            <Link size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={async () => {
-            const realKey = await resolveRealKey(apiKey.id)
-            if (!realKey) return
-            setResolvedKey(realKey)
-            setCurrentRow(apiKey)
-            setOpen('cc-switch')
-          }}
-        >
-          {t('CC Switch')}
-          <DropdownMenuShortcut>
-            <ArrowRightLeft size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        {hasChatPresets && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {chatPresets.map((preset) => (
-                <DropdownMenuItem
-                  key={preset.id}
-                  onClick={() => handleOpenChatPreset(preset)}
-                >
-                  {preset.name}
-                  {preset.type !== 'web' && (
-                    <DropdownMenuShortcut>
-                      <ExternalLink size={16} />
-                    </DropdownMenuShortcut>
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+        {isImporting ? (
+          <Loader2 className='size-3.5 animate-spin' />
+        ) : (
+          <ArrowUpToLine className='size-3.5 transition-transform group-hover:scale-110' />
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            setCurrentRow(apiKey)
-            setOpen('delete')
-          }}
-          className='text-destructive focus:text-destructive'
-        >
+        <span className='text-[11px] leading-none font-normal whitespace-nowrap'>
+          {t('Import to CCS')}
+        </span>
+      </button>
+
+      {/* 2. 禁用 / 启用 */}
+      <button
+        type='button'
+        onClick={(e) => void handleToggleStatus(e)}
+        disabled={isTogglingStatus}
+        className={cn(
+          'group flex flex-col items-center justify-center gap-1 px-1.5 py-1 transition-colors cursor-pointer rounded-md hover:bg-muted/60 disabled:opacity-50',
+          isEnabled
+            ? 'text-muted-foreground hover:text-destructive'
+            : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+        )}
+        title={toggleLabel}
+      >
+        <span className='transition-transform group-hover:scale-110'>
+          {statusIcon}
+        </span>
+        <span className='text-[11px] leading-none font-normal whitespace-nowrap'>
+          {toggleLabel}
+        </span>
+      </button>
+
+      {/* 3. 编辑 */}
+      <button
+        type='button'
+        onClick={() => {
+          setCurrentRow(apiKey)
+          setOpen('update')
+        }}
+        className='group text-muted-foreground hover:text-foreground hover:bg-muted/60 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1 transition-colors'
+        title={t('Edit')}
+      >
+        <Edit className='size-3.5 transition-transform group-hover:scale-110' />
+        <span className='text-[11px] leading-none font-normal whitespace-nowrap'>
+          {t('Edit')}
+        </span>
+      </button>
+
+      {/* 4. 删除 */}
+      <button
+        type='button'
+        onClick={() => {
+          setCurrentRow(apiKey)
+          setOpen('delete')
+        }}
+        className='group text-muted-foreground hover:text-destructive hover:bg-muted/60 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1 transition-colors'
+        title={t('Delete')}
+      >
+        <Trash2 className='size-3.5 transition-transform group-hover:scale-110' />
+        <span className='text-[11px] leading-none font-normal whitespace-nowrap'>
           {t('Delete')}
-          <DropdownMenuShortcut>
-            <Trash2 size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DataTableRowActionMenu>
+        </span>
+      </button>
     </div>
   )
 }

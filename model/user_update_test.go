@@ -2,13 +2,18 @@ package model
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -397,4 +402,136 @@ func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 
 	err = ResetUserPasswordByEmail("missing@example.com", "NewPassword123")
 	require.True(t, errors.Is(err, ErrEmailNotFound))
+}
+
+func TestUserInsertAutoCreatesStudioTokens(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := &User{
+		Username: "auto-image-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+
+	require.NoError(t, user.Insert(0))
+
+	for _, expected := range []struct {
+		name  string
+		group string
+	}{
+		{name: defaultImageTokenName, group: defaultImageTokenGroup},
+		{name: defaultSeedanceTokenName, group: defaultSeedanceTokenGroup},
+		{name: defaultStableVideoTokenName, group: defaultStableVideoTokenGroup},
+	} {
+		var token Token
+		require.NoError(t, DB.Where("user_id = ? AND name = ?", user.Id, expected.name).First(&token).Error)
+		assert.Equal(t, expected.group, token.Group)
+		assert.True(t, token.UnlimitedQuota)
+		assert.Equal(t, int64(-1), token.ExpiredTime)
+		assert.Equal(t, common.TokenStatusEnabled, token.Status)
+		assert.NotEmpty(t, token.Key)
+	}
+
+	// 测试幂等性：再次调用 finishInsert 不会生成重复令牌
+	user.FinishInsert(0)
+	var count int64
+	require.NoError(t, DB.Model(&Token{}).Where("user_id = ? AND name IN ?", user.Id, []string{defaultImageTokenName, defaultSeedanceTokenName, defaultStableVideoTokenName}).Count(&count).Error)
+	assert.Equal(t, int64(3), count)
+}
+
+func TestBackfillDefaultSeedanceTokens(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	users := []User{
+		{Username: "seedance-backfill-missing", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "sbm1"},
+		{Username: "seedance-backfill-existing", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "sbe1"},
+	}
+	for i := range users {
+		require.NoError(t, DB.Create(&users[i]).Error)
+	}
+	require.NoError(t, ensureDefaultUserToken(users[1].Id, defaultSeedanceTokenName, defaultSeedanceTokenGroup))
+
+	require.NoError(t, BackfillDefaultSeedanceTokens())
+	require.NoError(t, BackfillDefaultSeedanceTokens())
+
+	for _, user := range users {
+		for _, expected := range []struct {
+			name  string
+			group string
+		}{
+			{name: defaultSeedanceTokenName, group: defaultSeedanceTokenGroup},
+			{name: defaultStableVideoTokenName, group: defaultStableVideoTokenGroup},
+		} {
+			var tokens []Token
+			require.NoError(t, DB.Where("user_id = ? AND name = ?", user.Id, expected.name).Find(&tokens).Error)
+			require.Len(t, tokens, 1)
+			assert.Equal(t, expected.group, tokens[0].Group)
+		}
+	}
+}
+
+func TestDefaultSeedanceTokenDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector
+			var databaseType common.DatabaseType
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(filepath.Join(t.TempDir(), "seedance.db"))
+				databaseType = common.DatabaseTypeSQLite
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN is not configured")
+				}
+				driver = mysql.Open(dsn)
+				databaseType = common.DatabaseTypeMySQL
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN is not configured")
+				}
+				driver = postgres.Open(dsn)
+				databaseType = common.DatabaseTypePostgreSQL
+			}
+
+			testDB, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := testDB.DB()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+
+			previousDB := DB
+			previousMainType := common.MainDatabaseType()
+			previousLogType := common.LogDatabaseType()
+			DB = testDB
+			common.SetDatabaseTypes(databaseType, databaseType)
+			t.Cleanup(func() {
+				DB = previousDB
+				common.SetDatabaseTypes(previousMainType, previousLogType)
+			})
+
+			require.NoError(t, DB.Migrator().DropTable(&Token{}, &User{}))
+			require.NoError(t, DB.AutoMigrate(&User{}, &Token{}))
+			t.Cleanup(func() { require.NoError(t, DB.Migrator().DropTable(&Token{}, &User{})) })
+
+			user := User{Username: "seedance-matrix-user", Role: common.RoleCommonUser, Status: common.UserStatusEnabled}
+			require.NoError(t, DB.Create(&user).Error)
+			require.NoError(t, BackfillDefaultSeedanceTokens())
+			require.NoError(t, BackfillDefaultSeedanceTokens())
+
+			for _, expected := range []struct {
+				name  string
+				group string
+			}{
+				{name: defaultSeedanceTokenName, group: defaultSeedanceTokenGroup},
+				{name: defaultStableVideoTokenName, group: defaultStableVideoTokenGroup},
+			} {
+				var tokens []Token
+				require.NoError(t, DB.Where("user_id = ? AND name = ?", user.Id, expected.name).Find(&tokens).Error)
+				require.Len(t, tokens, 1)
+				assert.Equal(t, expected.group, tokens[0].Group)
+			}
+		})
+	}
 }

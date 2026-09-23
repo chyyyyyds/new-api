@@ -189,24 +189,26 @@ export function getReasoningEffortVariant(
 }
 
 /**
- * Get time color based on duration (in seconds)
+ * 根据总耗时获取状态颜色（秒）
+ * 耗时 <= 40s 时为健康色（绿色）
  */
 export function getTimeColor(
   seconds: number
 ): 'success' | 'warning' | 'danger' {
-  if (seconds < 10) return 'success'
-  if (seconds < 30) return 'warning'
+  if (seconds <= 40) return 'success'
+  if (seconds < 60) return 'warning'
   return 'danger'
 }
 
 /**
- * Get first-response-token color based on latency (in seconds)
+ * 根据首字响应时间获取颜色（秒）
+ * 首字 <= 16s 时为健康色（绿色）
  */
 export function getFirstResponseTimeColor(
   seconds: number
 ): 'success' | 'warning' | 'danger' {
-  if (seconds < 5) return 'success'
-  if (seconds < 10) return 'warning'
+  if (seconds <= 16) return 'success'
+  if (seconds < 30) return 'warning'
   return 'danger'
 }
 
@@ -222,12 +224,16 @@ export function getThroughputColor(
 }
 
 /**
- * Get response color using throughput only when enough output tokens exist.
+ * 获取响应时间状态颜色
+ * 当耗时 <= 40s 时直接为健康色（绿色）；
+ * 当耗时 > 40s 且有足够的输出 token 时，按吞吐量评估，否则按总耗时时长评估
  */
 export function getResponseTimeColor(
   seconds: number,
   completionTokens: number
 ): 'success' | 'warning' | 'danger' {
+  // 耗时 <= 40 秒时显示健康色（绿色）
+  if (seconds <= 40) return 'success'
   if (completionTokens < 100 || seconds <= 0) return getTimeColor(seconds)
   return getThroughputColor(completionTokens / seconds)
 }

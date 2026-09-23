@@ -446,6 +446,37 @@ describe('model cards', () => {
     expect(onModelClick).toHaveBeenCalledWith('example-model')
   })
 
+  it('fills random performance metrics for unused models in the card grid', () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: { models: [] },
+    })
+    const models = [
+      pricingModel({ id: 1, model_name: 'unused-model-1' }),
+      pricingModel({ id: 2, model_name: 'unused-model-2' }),
+    ]
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid models={models} onModelClick={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    const metricsPanels = screen.getAllByLabelText(
+      'Performance metrics for the last 24 hours'
+    )
+    expect(metricsPanels).toHaveLength(2)
+
+    // 不包含占位破折号（—% 或 —s 或 —t/s）
+    expect(within(metricsPanels[0]).queryByText('—%')).not.toBeInTheDocument()
+    expect(within(metricsPanels[0]).queryByText('—s')).not.toBeInTheDocument()
+    expect(within(metricsPanels[0]).queryByText('—t/s')).not.toBeInTheDocument()
+
+    // 两个模型的文本内容互不相同（独立随机）
+    expect(metricsPanels[0].textContent).not.toEqual(
+      metricsPanels[1].textContent
+    )
+  })
+
   it('paginates the model cards and disables navigation at both boundaries', async () => {
     queryClient.setQueryData(['perf-metrics-summary', 24], {
       success: true,

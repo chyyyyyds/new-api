@@ -16,10 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { About } from '@/features/about'
 
 export const Route = createFileRoute('/about/')({
+  beforeLoad: () => {
+    // 关于页面已隐藏，重定向至首页
+    throw redirect({ to: '/' })
+  },
   component: About,
 })

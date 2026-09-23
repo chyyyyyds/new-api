@@ -17,11 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, BookOpen, Boxes } from 'lucide-react'
+import { ArrowRight, Boxes } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { useStatus } from '@/hooks/use-status'
 
 import { AiCore } from '../ai-core'
 import { ModelMarquee } from '../model-marquee'
@@ -33,10 +32,6 @@ interface HeroProps {
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
-  const isExternalDocs = docsUrl.startsWith('http')
 
   return (
     <section className='home-hero relative z-10 overflow-hidden px-5 pt-28 pb-8 sm:px-6 md:pt-36 md:pb-12'>
@@ -72,21 +67,6 @@ export function Hero(props: HeroProps) {
             >
               {props.isAuthenticated ? t('Go to Dashboard') : t('Get Started')}
               <ArrowRight data-icon='inline-end' className='size-4' />
-            </Button>
-            <Button
-              size='lg'
-              variant='outline'
-              className='home-secondary-button h-12 gap-2 px-6 text-sm'
-              render={
-                isExternalDocs ? (
-                  <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
-                ) : (
-                  <Link to={docsUrl} />
-                )
-              }
-            >
-              <BookOpen data-icon='inline-start' className='size-4' />
-              {t('Docs')}
             </Button>
           </div>
         </div>

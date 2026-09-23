@@ -23,6 +23,7 @@ import {
   NEW_API_CANVAS_CONFIG,
   NEW_API_CANVAS_READY,
   parseCanvasLifecycleMessage,
+  selectPreferredApiKey,
 } from '../lib/host-bridge'
 
 describe('image studio host bridge', () => {
@@ -41,6 +42,41 @@ describe('image studio host bridge', () => {
       apiKey: 'sk-image-key',
       channelName: '图图',
       historyScope: 'user-42',
+    })
+  })
+
+  it('selects the dedicated Seedance API key before other enabled keys', () => {
+    const keys = [
+      { id: 1, name: '普通令牌' },
+      { id: 2, name: 'seedance视频生成' },
+    ]
+
+    expect(selectPreferredApiKey(keys, 'seedance视频生成', 'seedance')).toEqual(
+      keys[1]
+    )
+  })
+
+  it('includes video defaults in the Canvas configuration message', () => {
+    expect(
+      createCanvasConfigMessage(
+        'https://api.example.com',
+        'sk-video-key',
+        'seedance视频生成',
+        'user-42',
+        {
+          studio: 'video',
+          preferredModel: 'seedance-2.0-fast-720p-c5',
+          videoSeconds: '10',
+          videoResolution: '720',
+          videoSize: '1280x720',
+        }
+      )
+    ).toMatchObject({
+      studio: 'video',
+      preferredModel: 'seedance-2.0-fast-720p-c5',
+      videoSeconds: '10',
+      videoResolution: '720',
+      videoSize: '1280x720',
     })
   })
 

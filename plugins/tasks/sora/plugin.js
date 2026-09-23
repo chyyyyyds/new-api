@@ -7,7 +7,7 @@ export const meta = {
     en: "OpenAI Sora video generation (text-to-video, image-to-video, and remix)",
     zh: "OpenAI Sora 视频生成（文生视频、图生视频、remix）",
   },
-  version: "1.0.3",
+  version: "1.0.4",
   channelTypes: [55, 1], // OpenAI-type channels natively serve sora with the same wire format
   author: { name: "QuantumNous" },
   models: ["sora-2", "sora-2-pro"],
@@ -33,6 +33,26 @@ export const meta = {
   },
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
+
+// 这些兼容 OpenAI Video 协议的 Seedance 渠道按任务计费，时长只参与请求校验，不能作为价格倍率。
+const SEEDANCE_PER_TASK_MODELS = [
+  "seedance-2.0-480p-c1",
+  "seedance-2.0-720p-c2",
+  "seedance-2.0-fast-720p-c3",
+  "seedance-2.5-720p-c4",
+  "seedance-2.0-fast-720p-c5",
+  "seedance-2.0-fast-720p-c6",
+  "seedance-2.0-fast-720p-c7",
+  "seedance-2.0-fast-720p-c8",
+  "seedance-2.0-fast-720p-c9",
+  "seedance-2.0-720p-c10",
+  "seedance-2.0-720p-c11",
+  "seedance-2.5-720p-c12",
+];
+
+function isSeedancePerTaskModel(ctx) {
+  return SEEDANCE_PER_TASK_MODELS.includes(trimmed((ctx && (ctx.upstreamModel || ctx.model)) || ""));
+}
 
 function trimmed(value) {
   return String(value || "").trim();
@@ -124,6 +144,7 @@ export function parseSubmitResponse(ctx, resp) {
 
 export function extractUsage(ctx) {
   if (ctx.action === "remix") return {};
+  if (isSeedancePerTaskModel(ctx)) return {};
   const req = ctx.requestBody || {};
   let seconds = Number(req.seconds || req.duration || 4);
   if (!Number.isFinite(seconds) || seconds <= 0) seconds = 4;
@@ -131,6 +152,7 @@ export function extractUsage(ctx) {
 }
 
 export function extractUsageOnComplete(task, taskResult, body) {
+  if (isSeedancePerTaskModel(task)) return {};
   const facts = {};
   const seconds = Number((body || {}).seconds || (body || {}).duration || 0);
   if (Number.isFinite(seconds) && seconds > 0) facts.seconds = Math.min(seconds, 3600);

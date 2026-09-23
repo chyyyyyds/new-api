@@ -21,6 +21,7 @@ import z from 'zod'
 
 import { Rankings } from '@/features/rankings'
 import { getModuleAccessForGuard } from '@/lib/nav-modules'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 const rankingsSearchSchema = z.object({
@@ -40,14 +41,13 @@ export const Route = createFileRoute('/rankings/')({
     if (!access.enabled) {
       throw redirect({ to: '/' })
     }
-    if (access.requireAuth) {
-      const { auth } = useAuthStore.getState()
-      if (!auth.user) {
-        throw redirect({
-          to: '/sign-in',
-          search: { redirect: location.href },
-        })
-      }
+    const { auth } = useAuthStore.getState()
+    // 仅超级管理员 (Root User) 能够访问排行榜，其他人直接拦截重定向
+    if (!auth.user || auth.user.role !== ROLE.SUPER_ADMIN) {
+      throw redirect({
+        to: auth.user ? '/' : '/sign-in',
+        search: auth.user ? undefined : { redirect: location.href },
+      })
     }
   },
   component: Rankings,

@@ -19,6 +19,15 @@ import (
 
 const UserNameMaxLength = 20
 
+const (
+	defaultImageTokenName        = "image2生图"
+	defaultImageTokenGroup       = "生图"
+	defaultSeedanceTokenName     = "seedance视频生成"
+	defaultSeedanceTokenGroup    = "seedance视频生成"
+	defaultStableVideoTokenName  = "视频生成（稳定版）"
+	defaultStableVideoTokenGroup = "视频生成（稳定版）"
+)
+
 var userSortColumns = map[string]string{
 	"id":            "id",
 	"username":      "username",
@@ -738,6 +747,103 @@ func (user *User) finishInsert(inviterId int) {
 			_ = inviteUser(inviterId)
 		}
 	}
+
+	// 自动为新用户创建创作台专用 API Key，密钥仅保存到令牌表，不写入日志。
+	targetUserId := user.Id
+	if createdUser.Id > 0 {
+		targetUserId = createdUser.Id
+	}
+	if targetUserId > 0 {
+		if err := createDefaultImageToken(targetUserId); err != nil {
+			common.SysLog(fmt.Sprintf("为用户 %d 自动创建生图令牌失败: %s", targetUserId, err.Error()))
+		} else {
+			common.SysLog(fmt.Sprintf("已为用户 %d 确保生图令牌存在", targetUserId))
+		}
+		if err := createDefaultSeedanceToken(targetUserId); err != nil {
+			common.SysLog(fmt.Sprintf("为用户 %d 自动创建 Seedance 视频令牌失败: %s", targetUserId, err.Error()))
+		} else {
+			common.SysLog(fmt.Sprintf("已为用户 %d 确保 Seedance 视频令牌存在", targetUserId))
+		}
+		if err := createDefaultStableVideoToken(targetUserId); err != nil {
+			common.SysLog(fmt.Sprintf("为用户 %d 自动创建稳定版视频令牌失败: %s", targetUserId, err.Error()))
+		} else {
+			common.SysLog(fmt.Sprintf("已为用户 %d 确保稳定版视频令牌存在", targetUserId))
+		}
+	}
+}
+
+// createDefaultImageToken 为新注册用户自动创建生图专用的 API Key
+func createDefaultImageToken(userId int) error {
+	return ensureDefaultUserToken(userId, defaultImageTokenName, defaultImageTokenGroup)
+}
+
+// createDefaultSeedanceToken 为用户创建 Seedance 视频创作台专用的 API Key。
+func createDefaultSeedanceToken(userId int) error {
+	return ensureDefaultUserToken(userId, defaultSeedanceTokenName, defaultSeedanceTokenGroup)
+}
+
+// createDefaultStableVideoToken 为用户创建稳定版视频创作台专用的 API Key。
+func createDefaultStableVideoToken(userId int) error {
+	return ensureDefaultUserToken(userId, defaultStableVideoTokenName, defaultStableVideoTokenGroup)
+}
+
+func ensureDefaultUserToken(userId int, name string, group string) error {
+	if userId <= 0 {
+		return errors.New("无效的用户ID")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// 锁定用户行，避免多实例启动回填与注册收尾并发创建重复令牌。
+		var owner User
+		if err := lockForUpdate(tx).Select("id").First(&owner, userId).Error; err != nil {
+			return err
+		}
+		var existCount int64
+		if err := tx.Model(&Token{}).Where("user_id = ? AND name = ?", userId, name).Count(&existCount).Error; err != nil {
+			return err
+		}
+		if existCount > 0 {
+			return nil
+		}
+		key, err := common.GenerateKey()
+		if err != nil {
+			return err
+		}
+		token := Token{
+			UserId:             userId,
+			Name:               name,
+			Key:                key,
+			Status:             common.TokenStatusEnabled,
+			CreatedTime:        common.GetTimestamp(),
+			AccessedTime:       common.GetTimestamp(),
+			ExpiredTime:        -1,
+			RemainQuota:        0,
+			UnlimitedQuota:     true,
+			ModelLimitsEnabled: false,
+			ModelLimits:        "",
+			AllowIps:           nil,
+			Group:              group,
+			CrossGroupRetry:    false,
+			AutoGroups:         "",
+		}
+		return tx.Create(&token).Error
+	})
+}
+
+// BackfillDefaultSeedanceTokens 为所有未删除的老用户补齐旧版与稳定版视频创作台令牌。
+func BackfillDefaultSeedanceTokens() error {
+	var userIds []int
+	if err := DB.Model(&User{}).Order("id").Pluck("id", &userIds).Error; err != nil {
+		return err
+	}
+	for _, userId := range userIds {
+		if err := createDefaultSeedanceToken(userId); err != nil {
+			return fmt.Errorf("为用户 %d 回填 Seedance 视频令牌失败: %w", userId, err)
+		}
+		if err := createDefaultStableVideoToken(userId); err != nil {
+			return fmt.Errorf("为用户 %d 回填稳定版视频令牌失败: %w", userId, err)
+		}
+	}
+	return nil
 }
 
 func (user *User) FinishInsert(inviterId int) {

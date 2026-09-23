@@ -50,6 +50,42 @@ func TestGetChannelDefaultBaseURLsUsesBuiltInDefaults(t *testing.T) {
 	assert.NotContains(t, response.Data, constant.ChannelTypeTaskPlugin)
 }
 
+func TestChannelStatusPercentileUsesNearestRank(t *testing.T) {
+	samples := []int64{1_000, 2_000, 9_000, 10_000}
+
+	assert.Equal(t, int64(2_000), channelStatusPercentile(samples, 0.5))
+	assert.Equal(t, int64(10_000), channelStatusPercentile(samples, 0.9))
+	assert.Zero(t, channelStatusPercentile(nil, 0.5))
+}
+
+func TestBuildChannelStatusFallbackIsStableAndWithinConfiguredRanges(t *testing.T) {
+	first := buildChannelStatusFallback("openai / default 1x", 123)
+	second := buildChannelStatusFallback("openai / default 1x", 123)
+
+	assert.Equal(t, first, second)
+	assert.GreaterOrEqual(t, first.successRate, 95.0)
+	assert.LessOrEqual(t, first.successRate, 99.0)
+	assert.GreaterOrEqual(t, first.firstToken, 5.0)
+	assert.LessOrEqual(t, first.firstToken, 15.0)
+	assert.GreaterOrEqual(t, first.cacheRate, 15.0)
+	assert.LessOrEqual(t, first.cacheRate, 60.0)
+}
+
+func TestChannelStatusDimensionMatchesRequiresActualGroup(t *testing.T) {
+	record := model.ChannelStatusLogRecord{
+		ChannelId: 7,
+		Group:     "vip",
+		ModelName: "gpt-test",
+	}
+
+	assert.True(t, channelStatusDimensionMatches([]int{7}, "vip", []string{"gpt-test"}, record))
+	assert.False(t, channelStatusDimensionMatches([]int{7}, "default", []string{"gpt-test"}, record))
+	assert.False(t, channelStatusDimensionMatches([]int{8}, "vip", []string{"gpt-test"}, record))
+
+	record.ChannelId = 0
+	assert.True(t, channelStatusDimensionMatches([]int{8}, "vip", []string{"gpt-test"}, record))
+}
+
 func TestValidateChannelProxy(t *testing.T) {
 	tests := []struct {
 		name    string

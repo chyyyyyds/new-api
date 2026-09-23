@@ -26,9 +26,12 @@ import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
+import { Route as AuthenticatedAvailableChannelsRouteImport } from './routes/_authenticated/available-channels'
+import { Route as AuthenticatedChannelStatusRouteImport } from './routes/_authenticated/channel-status'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
 import { Route as AuthenticatedImageStudioRouteImport } from './routes/_authenticated/image-studio'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
+import { Route as AuthenticatedVideoStudioRouteImport } from './routes/_authenticated/video-studio'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
@@ -155,6 +158,18 @@ const errors503Route = errors503RouteImport.update({
   path: '/503',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAvailableChannelsRoute =
+  AuthenticatedAvailableChannelsRouteImport.update({
+    id: '/available-channels',
+    path: '/available-channels',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedChannelStatusRoute =
+  AuthenticatedChannelStatusRouteImport.update({
+    id: '/channel-status',
+    path: '/channel-status',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   id: '/chat2link',
   path: '/chat2link',
@@ -170,6 +185,12 @@ const AuthenticatedSystemSettingsRouteRoute =
   AuthenticatedSystemSettingsRouteRouteImport.update({
     id: '/system-settings',
     path: '/system-settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedVideoStudioRoute =
+  AuthenticatedVideoStudioRouteImport.update({
+    id: '/video-studio',
+    path: '/video-studio',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AboutIndexRoute = AboutIndexRouteImport.update({
@@ -432,8 +453,11 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/available-channels': typeof AuthenticatedAvailableChannelsRoute
+  '/channel-status': typeof AuthenticatedChannelStatusRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/image-studio': typeof AuthenticatedImageStudioRoute
+  '/video-studio': typeof AuthenticatedVideoStudioRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -493,8 +517,11 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/available-channels': typeof AuthenticatedAvailableChannelsRoute
+  '/channel-status': typeof AuthenticatedChannelStatusRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/image-studio': typeof AuthenticatedImageStudioRoute
+  '/video-studio': typeof AuthenticatedVideoStudioRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
@@ -558,8 +585,11 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/available-channels': typeof AuthenticatedAvailableChannelsRoute
+  '/_authenticated/channel-status': typeof AuthenticatedChannelStatusRoute
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
   '/_authenticated/image-studio': typeof AuthenticatedImageStudioRoute
+  '/_authenticated/video-studio': typeof AuthenticatedVideoStudioRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -622,8 +652,11 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/available-channels'
+    | '/channel-status'
     | '/chat2link'
     | '/image-studio'
+    | '/video-studio'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -683,8 +716,11 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/available-channels'
+    | '/channel-status'
     | '/chat2link'
     | '/image-studio'
+    | '/video-studio'
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
@@ -747,8 +783,11 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/available-channels'
+    | '/_authenticated/channel-status'
     | '/_authenticated/chat2link'
     | '/_authenticated/image-studio'
+    | '/_authenticated/video-studio'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -933,6 +972,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof errors503RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/available-channels': {
+      id: '/_authenticated/available-channels'
+      path: '/available-channels'
+      fullPath: '/available-channels'
+      preLoaderRoute: typeof AuthenticatedAvailableChannelsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/channel-status': {
+      id: '/_authenticated/channel-status'
+      path: '/channel-status'
+      fullPath: '/channel-status'
+      preLoaderRoute: typeof AuthenticatedChannelStatusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chat2link': {
       id: '/_authenticated/chat2link'
       path: '/chat2link'
@@ -952,6 +1005,13 @@ declare module '@tanstack/react-router' {
       path: '/system-settings'
       fullPath: '/system-settings'
       preLoaderRoute: typeof AuthenticatedSystemSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/video-studio': {
+      id: '/_authenticated/video-studio'
+      path: '/video-studio'
+      fullPath: '/video-studio'
+      preLoaderRoute: typeof AuthenticatedVideoStudioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/about/': {
@@ -1336,8 +1396,11 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  AuthenticatedAvailableChannelsRoute: typeof AuthenticatedAvailableChannelsRoute
+  AuthenticatedChannelStatusRoute: typeof AuthenticatedChannelStatusRoute
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
   AuthenticatedImageStudioRoute: typeof AuthenticatedImageStudioRoute
+  AuthenticatedVideoStudioRoute: typeof AuthenticatedVideoStudioRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1363,8 +1426,11 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
+  AuthenticatedAvailableChannelsRoute: AuthenticatedAvailableChannelsRoute,
+  AuthenticatedChannelStatusRoute: AuthenticatedChannelStatusRoute,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
   AuthenticatedImageStudioRoute: AuthenticatedImageStudioRoute,
+  AuthenticatedVideoStudioRoute: AuthenticatedVideoStudioRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

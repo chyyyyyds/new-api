@@ -349,17 +349,17 @@ async function renderKeysPage(status = 1, overrides: Partial<ApiKey> = {}) {
   return { post, put }
 }
 
-it('combines creation and last use while keeping expiry, models and IP restrictions separate', async () => {
+it('keeps the default desktop table compact while preserving quota details', async () => {
   await renderKeysPage()
-  for (const name of ['Name', 'API Key', 'Group', 'Models', 'IP Restriction']) {
+  for (const name of ['Name', 'API Key', 'Group']) {
     expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
   }
-  expect(screen.getByRole('columnheader', { name: 'Time' })).toBeInTheDocument()
   expect(
     screen.getByRole('columnheader', { name: 'Expires' })
   ).toBeInTheDocument()
-  const timeCell = screen.getByRole('cell', { name: /Created.*Last Used/ })
-  expect(within(timeCell).getByText('Last Used')).toBeInTheDocument()
+  for (const name of ['Time', 'Models', 'IP Restriction']) {
+    expect(screen.queryByRole('columnheader', { name })).not.toBeInTheDocument()
+  }
   const quotaHeader = screen.getByRole('columnheader', { name: 'Quota ($)' })
   const quotaTrigger = screen.getByRole('button', {
     name: /Remaining 80; Remaining percentage 40%; Used amount 120/,
@@ -368,14 +368,13 @@ it('combines creation and last use while keeping expiry, models and IP restricti
   expect(quotaTrigger.closest('td')).not.toHaveClass('pr-8')
 })
 
-it('restores dates hidden by the old default and preserves unrelated column preferences', async () => {
+it('honors versioned visibility preferences for optional columns', async () => {
   localStorage.setItem(
-    'api-keys:column-visibility',
+    'api-keys:column-visibility-v2',
     JSON.stringify({
-      created_time: false,
-      accessed_time: false,
-      expired_time: false,
-      model_limits: false,
+      activity_time: true,
+      model_limits: true,
+      allow_ips: false,
     })
   )
   await renderKeysPage()
@@ -384,7 +383,10 @@ it('restores dates hidden by the old default and preserves unrelated column pref
     screen.getByRole('columnheader', { name: 'Expires' })
   ).toBeInTheDocument()
   expect(
-    screen.queryByRole('columnheader', { name: 'Models' })
+    screen.getByRole('columnheader', { name: 'Models' })
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('columnheader', { name: 'IP Restriction' })
   ).not.toBeInTheDocument()
 })
 
@@ -421,7 +423,7 @@ it('keeps expired status when the server refuses reactivation', async () => {
 })
 
 it.each([true, false])(
-  'fetches a full key only on explicit copy and honors permission success=%s',
+  'fetches a full key only on explicit CC Switch import and honors permission success=%s',
   async (success) => {
     const user = userEvent.setup()
     const { post } = await renderKeysPage()
@@ -430,18 +432,13 @@ it.each([true, false])(
         ? { data: { success: true, data: { key: 'fake-key-for-test-only' } } }
         : { data: { success: false, message: 'Verification required' } }
     )
-    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
-    await user.click(screen.getByRole('button', { name: 'Open menu' }))
     expect(post).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('menuitem', { name: 'Copy Key' }))
+    await user.click(screen.getByRole('button', { name: 'Import to CCS' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/token/7/key'))
     if (success) {
-      await waitFor(() =>
-        expect(copy).toHaveBeenCalledWith('sk-fake-key-for-test-only')
-      )
+      await screen.findByText('Opening CC Switch...')
     } else {
       await screen.findByText('Verification required')
-      expect(copy).not.toHaveBeenCalled()
     }
   }
 )

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  Activity,
   Box,
   ClipboardList,
   CreditCard,
@@ -33,6 +34,7 @@ import {
   Ticket,
   User,
   Users,
+  Video,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -66,9 +68,24 @@ export function useSidebarData(): SidebarData {
             icon: Key,
           },
           {
+            title: t('Available Channels'),
+            url: '/available-channels',
+            icon: Radio,
+          },
+          {
+            title: t('Channel Status'),
+            url: '/channel-status',
+            icon: Activity,
+          },
+          {
             title: t('Image Studio'),
             url: '/image-studio',
             icon: Images,
+          },
+          {
+            title: t('Video Studio'),
+            url: '/video-studio',
+            icon: Video,
           },
           {
             title: t('Usage Logs'),

@@ -25,11 +25,20 @@ type CanvasLifecycleMessage = {
   version: 1
 }
 
+export type CanvasStudioDefaults = {
+  studio: 'image' | 'video'
+  preferredModel?: string
+  videoSeconds?: string
+  videoResolution?: string
+  videoSize?: string
+}
+
 export function createCanvasConfigMessage(
   baseUrl: string,
   apiKey: string,
   channelName: string,
-  historyScope: string
+  historyScope: string,
+  defaults?: CanvasStudioDefaults
 ) {
   return {
     type: NEW_API_CANVAS_CONFIG,
@@ -38,7 +47,22 @@ export function createCanvasConfigMessage(
     apiKey,
     channelName,
     historyScope,
+    ...defaults,
   } as const
+}
+
+export function selectPreferredApiKey<T extends { name: string }>(
+  keys: T[],
+  exactName: string,
+  fallbackFragment: string
+) {
+  return (
+    keys.find((item) => item.name === exactName) ??
+    keys.find((item) =>
+      item.name.toLowerCase().includes(fallbackFragment.toLowerCase())
+    ) ??
+    keys[0]
+  )
 }
 
 export function parseCanvasLifecycleMessage(

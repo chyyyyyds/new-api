@@ -447,7 +447,10 @@ func TestImmediateTaskSettlementDatabase(t *testing.T) {
 	const source = `
 export const meta={apiVersion:1,key:"generic-settlement",name:"Generic settlement",version:"1.0.0",author:{name:"Test"},models:["document-model"],fetchMode:"per_task",usageSchema:{units:{type:"number",unit:"count"}}};
 export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/compile",body:ctx.requestBody};}
-export function parseSubmitResponse(ctx,resp){return {taskId:"vendor-job",taskData:resp.body,immediate:{status:resp.body.status,reason:"provider rejected job"}};}
+export function parseSubmitResponse(ctx,resp){
+  if(resp.body.asynchronous){return {taskId:"vendor-job",taskData:resp.body};}
+  return {taskId:"vendor-job",taskData:resp.body,immediate:{status:resp.body.status,reason:"provider rejected job"}};
+}
 export function extractUsage(){return {units:4};}
 export function extractUsageOnComplete(ctx,result,body){return body.usage;}
 export function parseTaskResult(){throw new Error("completed submissions must not poll");}
@@ -459,9 +462,18 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 		name, status string
 		actual       any
 		count        float64
+		httpStatus   int
+		asynchronous bool
 	}{
-		{"partial", "SUCCESS", 2, 2}, {"zero", "SUCCESS", 0, 0}, {"larger", "SUCCESS", 6, 6},
-		{"invalid usage", "SUCCESS", -1, 4}, {"expression failure", "SUCCESS", 7, 4}, {"negative result", "SUCCESS", 8, 4}, {"missing usage", "SUCCESS", nil, 4}, {"failed", "FAILURE", 9, 0},
+		{name: "partial", status: "SUCCESS", actual: 2, count: 2},
+		{name: "accepted asynchronous response", status: "IN_PROGRESS", count: 4, httpStatus: http.StatusAccepted, asynchronous: true},
+		{name: "zero", status: "SUCCESS", actual: 0, count: 0},
+		{name: "larger", status: "SUCCESS", actual: 6, count: 6},
+		{name: "invalid usage", status: "SUCCESS", actual: -1, count: 4},
+		{name: "expression failure", status: "SUCCESS", actual: 7, count: 4},
+		{name: "negative result", status: "SUCCESS", actual: 8, count: 4},
+		{name: "missing usage", status: "SUCCESS", count: 4},
+		{name: "failed", status: "FAILURE", actual: 9, count: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -470,9 +482,15 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 				if tc.actual != nil {
 					body["usage"] = map[string]any{"units": tc.actual}
 				}
+				if tc.asynchronous {
+					body["asynchronous"] = true
+				}
 				encoded, err := common.Marshal(body)
 				if err != nil {
 					panic(err)
+				}
+				if tc.httpStatus != 0 {
+					w.WriteHeader(tc.httpStatus)
 				}
 				_, _ = w.Write(encoded)
 			}))
@@ -509,10 +527,15 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 			var stored model.Task
 			require.NoError(t, db.Where("task_id = ?", info.PublicTaskID).First(&stored).Error)
 			assert.Equal(t, want, stored.Quota)
-			assert.Equal(t, model.TaskStatus(tc.status), stored.Status)
-			assert.Positive(t, stored.FinishTime)
+			if tc.asynchronous {
+				assert.Equal(t, model.TaskStatusNotStart, stored.Status)
+				assert.Zero(t, stored.FinishTime)
+			} else {
+				assert.Equal(t, model.TaskStatus(tc.status), stored.Status)
+				assert.Positive(t, stored.FinishTime)
+			}
 			assert.Equal(t, float64(4), info.TieredBillingSnapshot.EstimatedQuotaBeforeGroup/(0.01*common.QuotaPerUnit))
-			if tc.status == "SUCCESS" {
+			if tc.status == "SUCCESS" || tc.asynchronous {
 				assert.Equal(t, tc.count, stored.PrivateData.BillingContext.TieredSnapshot.UsageFacts["units"])
 			}
 			var updated model.User

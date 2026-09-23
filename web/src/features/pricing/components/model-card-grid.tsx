@@ -26,6 +26,7 @@ import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import { getEffectiveModelPerf } from '../lib/model-perf'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
 import type { ModelPerfBadgeData } from './model-perf-badge'
@@ -84,7 +85,14 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
-            perf={perfMap.get(model.model_name || '')}
+            perf={
+              perfQuery.isError
+                ? undefined
+                : getEffectiveModelPerf(
+                    model.model_name || '',
+                    perfMap.get(model.model_name || '')
+                  )
+            }
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

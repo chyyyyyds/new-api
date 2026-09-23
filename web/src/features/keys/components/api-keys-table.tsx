@@ -65,7 +65,7 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
-const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility-v2'
 const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
@@ -309,6 +309,11 @@ export function ApiKeysTable() {
     columns,
     enableRowSelection: true,
     columnFilters,
+    initialColumnVisibility: {
+      model_limits: false,
+      allow_ips: false,
+      activity_time: false,
+    },
     columnVisibilityStorageKey: API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY,
     globalFilter,
     pagination,
@@ -320,23 +325,6 @@ export function ApiKeysTable() {
     totalCount: data?.total || 0,
     ensurePageInRange,
   })
-
-  const columnVisibility = table.getState().columnVisibility
-  useEffect(() => {
-    // Restore the dates hidden by the previous default when adopting the combined time column.
-    if (
-      columnVisibility.activity_time === undefined &&
-      columnVisibility.created_time === false &&
-      columnVisibility.accessed_time === false &&
-      columnVisibility.expired_time === false
-    ) {
-      table.setColumnVisibility((previous) => ({
-        ...previous,
-        activity_time: true,
-        expired_time: true,
-      }))
-    }
-  }, [columnVisibility, table])
 
   return (
     <DataTablePage
