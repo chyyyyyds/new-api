@@ -30,6 +30,18 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 		middleware.AccessTokenAudit(),
 		middleware.GlobalWebRateLimit(),
 		middleware.Cache(),
+		func(c *gin.Context) {
+			// canvas 是嵌入式单页应用；先处理根路径，避免静态目录中间件在
+			// /canvas 与 /canvas/ 之间反复重定向。
+			path := c.Request.URL.Path
+			if path != "/canvas" && path != "/canvas/" {
+				c.Next()
+				return
+			}
+			c.Header("Cache-Control", "no-cache")
+			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.CanvasIndexPage)
+			c.Abort()
+		},
 		static.Serve("/", frontendFS),
 		func(c *gin.Context) {
 			path := c.Request.URL.Path
